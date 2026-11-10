@@ -114,17 +114,17 @@ function TimeSelect({ value, onChange, label }) {
   const mins = m && !MINUTES.includes(m) ? [...MINUTES, m].sort() : MINUTES;
   const change = (nh, nm) => onChange(nh === '' ? '' : `${nh}:${nm || '00'}`);
   return (
-    <span className="row" style={{ flexWrap: 'nowrap', gap: 4 }}>
+    <div className="time-select">
       <select className="select" value={h} onChange={(e) => change(e.target.value, m)} aria-label={`Hora ${label}`}>
         <option value="">--</option>
         {HOURS.map((x) => <option key={x} value={x}>{x}</option>)}
       </select>
-      <span aria-hidden="true">:</span>
+      <i aria-hidden="true">:</i>
       <select className="select" value={m} disabled={!h} onChange={(e) => change(h, e.target.value)} aria-label={`Minutos ${label}`}>
         {!h && <option value="">--</option>}
         {mins.map((x) => <option key={x} value={x}>{x}</option>)}
       </select>
-    </span>
+    </div>
   );
 }
 
@@ -171,18 +171,24 @@ function EventForm({ event, onClose }) {
 
   return (
     <Modal title={isNew ? 'Nuevo evento' : 'Editar evento'} onClose={onClose}>
-      <form onSubmit={save} className="stack" style={{ gap: 20 }}>
-        <div className="seg" style={{ flexWrap: 'wrap', alignSelf: 'flex-start' }} role="radiogroup" aria-label="Tipo">
-          {EVENT_KINDS.map((k) => (
-            <button key={k} type="button" role="radio" aria-checked={f.kind === k} className={f.kind === k ? 'on' : ''} onClick={() => setF({ ...f, kind: k })}>{k}</button>
-          ))}
+      <form onSubmit={save} className="stack" style={{ gap: 24 }}>
+        <div className="field">
+          <span>Tipo</span>
+          <div className="seg kind-grid" role="radiogroup" aria-label="Tipo">
+            {EVENT_KINDS.map((k) => (
+              <button key={k} type="button" role="radio" aria-checked={f.kind === k} className={f.kind === k ? 'on' : ''} onClick={() => setF({ ...f, kind: k })}>{k}</button>
+            ))}
+          </div>
         </div>
-        <div className="form-grid">
-          <label className="field"><span>Día ({zone === 'mx' ? 'México' : 'Argentina'})</span><input className="input" type="date" value={f.date} onChange={set('date')} /></label>
-          <div className="field"><span>Hora Argentina</span><TimeSelect value={f.time} onChange={setAr} label="Argentina" /></div>
-          <div className="field"><span>Hora México</span><TimeSelect value={mx} onChange={setMxTime} label="México" /></div>
+        <label className="field"><span>Día · {zone === 'mx' ? 'México' : 'Argentina'}</span><input className="input" type="date" value={f.date} onChange={set('date')} /></label>
+        <div className="field">
+          <span>Hora</span>
+          <div className="time-pair">
+            <div className={`time-zone${zone === 'ar' && f.time ? ' on' : ''}`}><b>Argentina</b><TimeSelect value={f.time} onChange={setAr} label="Argentina" /></div>
+            <div className={`time-zone${zone === 'mx' && f.time ? ' on' : ''}`}><b>México</b><TimeSelect value={mx} onChange={setMxTime} label="México" /></div>
+          </div>
+          {crossNote && <p className="muted small" style={{ margin: 0 }}>{crossNote}</p>}
         </div>
-        {crossNote && <p className="muted small" style={{ margin: 0 }}>{crossNote}</p>}
         <label className="field"><span>Título</span><input className="input" value={f.title} onChange={set('title')} placeholder={f.kind === 'Scrim' ? 'vs Rival · Mapa' : f.kind === 'Torneo' ? 'Nombre del torneo · fase' : f.kind} /></label>
         <label className="field"><span>Nota</span><textarea className="textarea" value={f.note} onChange={set('note')} placeholder="Qué se va a trabajar, link del VOD, quiénes…" /></label>
         {error && <p className="error" style={{ margin: 0 }}>{error}</p>}
