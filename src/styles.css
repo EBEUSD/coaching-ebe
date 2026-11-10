@@ -140,6 +140,10 @@ td .input, td .select { min-height: 40px; min-width: 64px; }
 .event { display: flex; flex-direction: column; gap: 4px; min-height: 44px; padding: 10px 12px; text-align: left; border: 0; color: var(--blanco); background: var(--surface-2); }
 .event:hover { background: #262025; }
 .event-scrim { background: transparent; border: 1px solid var(--line-2); }
+.event-note { background: transparent; border-left: 2px solid var(--line-2); }
+.clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; font-size: 15px; line-height: 1.4; color: var(--muted); white-space: pre-wrap; }
+.day-actions { display: flex; gap: 4px; margin-top: auto; }
+.day-actions .btn { flex: 1; min-height: 44px; padding: 0 8px; font-size: 11px; }
 @media (max-width: 960px) {
   .week { grid-template-columns: 1fr; }
   .week-day { min-height: 0; }

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { collection, doc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
-import { C, createPlayerAccount, db, setUserPassword } from '../firebase';
+import { C, createPlayerAccount, db, setUsername, setUserPassword } from '../firebase';
 import { useAuth } from '../auth';
 import { ROLES } from '../lib/constants';
 import { errMsg, randomPassword, slugUser, useLive } from '../lib/utils';
@@ -103,7 +103,7 @@ export default function Admin() {
                 <select className="select" style={{ width: 'auto', minWidth: 150 }} value={u.role} disabled={self} onChange={(e) => changeRole(u, e.target.value)} aria-label={`Rol de ${u.username}`}>
                   {APP_ROLES.map(([r, l]) => <option key={r} value={r}>{l}</option>)}
                 </select>
-                <button className="btn btn-ghost" style={{ minWidth: 110 }} onClick={() => setPwFor(u)}>Contraseña</button>
+                <button className="btn btn-ghost" style={{ minWidth: 110 }} onClick={() => setPwFor(u)}>Acceso</button>
                 {self
                   ? <span className="muted small" style={{ minWidth: 110, textAlign: 'center' }}>Activo</span>
                   : <button className={`btn ${u.active === false ? 'btn-light' : 'btn-ghost'}`} style={{ minWidth: 110 }} onClick={() => setActive(u, u.active === false)}>{u.active === false ? 'Activar' : 'Desactivar'}</button>}
@@ -113,40 +113,71 @@ export default function Admin() {
           {!users.loading && rows.length === 0 && <p className="empty">No hay usuarios con ese filtro.</p>}
         </div>
         <p className="muted small" style={{ margin: 0, lineHeight: 1.5 }}>
-          Desactivar corta el acceso al instante y conserva todos los datos. Las contraseñas solo se ven al crearlas; si alguien la olvida, usá «Contraseña» para ponerle una nueva.
+          Desactivar corta el acceso al instante y conserva todos los datos. Las contraseñas solo se ven al crearlas; si alguien la olvida, usá «Acceso» para ponerle una nueva o cambiarle el usuario.
         </p>
       </section>
 
       {creds && <CredentialsModal creds={creds} onClose={() => setCreds(null)} />}
-      {pwFor && <PasswordModal row={pwFor} onClose={() => setPwFor(null)} onDone={(c) => { setPwFor(null); setPwCreds(c); }} />}
+      {pwFor && <AccessModal row={pwFor} onClose={() => setPwFor(null)} onDone={(c) => { setPwFor(null); setPwCreds(c); }} />}
       {pwCreds && <CredentialsModal title="Contraseña nueva" creds={pwCreds} onClose={() => setPwCreds(null)} />}
     </main>
   );
 }
 
-function PasswordModal({ row, onClose, onDone }) {
+// Usuario de acceso y contraseña de una cuenta (Cloud Functions, solo super admin).
+function AccessModal({ row, onClose, onDone }) {
   const [password, setPassword] = useState(randomPassword);
-  const [busy, setBusy] = useState(false);
+  const [username, setUsernameInput] = useState(row.username || '');
+  const [current, setCurrent] = useState(row.username || '');
+  const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
+  const [userMsg, setUserMsg] = useState('');
   const who = row.nick || row.name || row.username;
+
+  const saveUser = async (e) => {
+    e.preventDefault();
+    setError(''); setUserMsg('');
+    const raw = username.trim().toLowerCase();
+    if (!raw) { setError('Poné un usuario.'); return; }
+    if (raw === current) { setUserMsg('Es el mismo usuario.'); return; }
+    setBusy('user');
+    try {
+      const saved = await setUsername(row.id, raw);
+      setCurrent(saved); setUsernameInput(saved);
+      setUserMsg(`Listo: ahora entra con «${saved}».`);
+    } catch (err) {
+      setError(errMsg(err));
+    } finally {
+      setBusy('');
+    }
+  };
 
   const submit = async (e) => {
     e.preventDefault();
     setError('');
     if (password.length < 6) { setError('La contraseña tiene que tener al menos 6 caracteres.'); return; }
-    setBusy(true);
+    setBusy('pass');
     try {
       await setUserPassword(row.id, password);
-      onDone([{ nick: who, username: row.username, password }]);
+      onDone([{ nick: who, username: current, password }]);
     } catch (err) {
       setError(errMsg(err));
-      setBusy(false);
+      setBusy('');
     }
   };
 
   return (
-    <Modal title={`Contraseña de ${who}`} onClose={onClose}>
-      <form onSubmit={submit} className="stack" style={{ gap: 20 }}>
+    <Modal title={`Acceso de ${who}`} onClose={onClose}>
+      <form onSubmit={saveUser} className="stack" style={{ gap: 12 }}>
+        <label className="field"><span>Usuario</span>
+          <span className="row" style={{ flexWrap: 'nowrap', gap: 4 }}>
+            <input className="input" value={username} onChange={(e) => { setUsernameInput(e.target.value); setUserMsg(''); }} autoComplete="off" />
+            <button className="btn btn-light" disabled={!!busy}>{busy === 'user' ? 'Guardando…' : 'Cambiar'}</button>
+          </span>
+        </label>
+        <p className="muted small" style={{ margin: 0 }}>{userMsg || 'Con el usuario nuevo conserva su ficha, notas y tareas. El anterior deja de funcionar.'}</p>
+      </form>
+      <form onSubmit={submit} className="stack divider" style={{ gap: 20 }}>
         <p className="muted" style={{ margin: 0 }}>La contraseña actual deja de funcionar. Las sesiones abiertas siguen activas hasta que cierre sesión.</p>
         <label className="field"><span>Contraseña nueva</span>
           <span className="row" style={{ flexWrap: 'nowrap', gap: 4 }}>
@@ -156,8 +187,8 @@ function PasswordModal({ row, onClose, onDone }) {
         </label>
         {error && <p className="error" style={{ margin: 0 }}>{error}</p>}
         <div className="row">
-          <button className="btn btn-primary" disabled={busy}>{busy ? 'Guardando…' : 'Cambiar contraseña'}</button>
-          <button type="button" className="btn" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-primary" disabled={!!busy}>{busy === 'pass' ? 'Guardando…' : 'Cambiar contraseña'}</button>
+          <button type="button" className="btn" onClick={onClose}>Cerrar</button>
         </div>
       </form>
     </Modal>

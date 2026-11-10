@@ -25,11 +25,13 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 // Storage vive en ./storage.js y Functions se carga al usarla: así no pesan en la carga inicial.
 
-// Cambia la contraseña de un usuario (Cloud Function, solo super admin).
-export async function setUserPassword(uid, password) {
+// Cloud Functions (solo super admin): cambiar contraseña y usuario de acceso.
+async function callFn(name, data) {
   const { getFunctions, httpsCallable } = await import('firebase/functions');
-  return httpsCallable(getFunctions(app, 'us-central1'), 'sotSetPassword')({ uid, password });
+  return httpsCallable(getFunctions(app, 'us-central1'), name)(data);
 }
+export const setUserPassword = (uid, password) => callFn('sotSetPassword', { uid, password });
+export const setUsername = async (uid, username) => (await callFn('sotSetUsername', { uid, username })).data.username;
 
 // Los jugadores entran con usuario (ej: "kai"). Por debajo es un email ficticio.
 export const USER_DOMAIN = 'sot-coaching.app';

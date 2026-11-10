@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { addDoc, collection, deleteDoc, doc, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, documentId, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
 import { C, db } from '../firebase';
 import { useAuth } from '../auth';
 import { EVENT_KINDS } from '../lib/constants';
@@ -34,6 +34,7 @@ export default function Calendario() {
   const [start, setStart] = useState(() => weekStart(today));
   const end = addDays(start, 6);
   const [open, setOpen] = useState(null); // evento existente o { date } para uno nuevo
+  const [notesFor, setNotesFor] = useState(null); // fecha cuyas notas del equipo se editan
 
   // Rango sobre un solo campo: no necesita índice compuesto.
   const events = useLive(() => query(collection(db, C.events), where('date', '>=', start), where('date', '<=', end)), [start]);
@@ -44,6 +45,9 @@ export default function Calendario() {
     (scrims.data || []).forEach((s) => { (m[s.date] ||= []).push(s); });
     return m;
   }, [scrims.data]);
+  // Notas del equipo (sot_days/{fecha}, solo staff). El id es la fecha: rango sobre documentId, sin índice.
+  const dayDocs = useLive(() => (staff ? query(collection(db, C.days), where(documentId(), '>=', start), where(documentId(), '<=', end)) : null), [start, staff]);
+  const teamNotes = useMemo(() => Object.fromEntries((dayDocs.data || []).filter((x) => x.teamNotes).map((x) => [x.id, x.teamNotes])), [dayDocs.data]);
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(start, i)), [start]);
   const byDay = useMemo(() => {
     const m = {};
@@ -92,7 +96,18 @@ export default function Calendario() {
                 <span style={{ fontWeight: 600, lineHeight: 1.3 }}>{score(s)} vs {s.rival || 'Sin rival'}</span>
               </Link>
             ))}
-            {staff && <button className="btn btn-dashed" style={{ marginTop: 'auto' }} onClick={() => setOpen({ date: d })} aria-label={`Agregar evento el ${dayName(d)} ${shortDate(d)}`}>+</button>}
+            {teamNotes[d] && (
+              <button className="event event-note" onClick={() => setNotesFor(d)}>
+                <span className="lbl muted" style={{ fontSize: 10 }}>Notas del equipo</span>
+                <span className="clamp">{teamNotes[d]}</span>
+              </button>
+            )}
+            {staff && (
+              <div className="day-actions">
+                <button className="btn btn-dashed" onClick={() => setOpen({ date: d })} aria-label={`Agregar evento el ${dayName(d)} ${shortDate(d)}`}>+ Evento</button>
+                {!teamNotes[d] && <button className="btn btn-dashed" onClick={() => setNotesFor(d)} aria-label={`Notas del equipo del ${dayName(d)} ${shortDate(d)}`}>Notas</button>}
+              </div>
+            )}
             {!(byDay[d] || []).length && !(scrimsByDay[d] || []).length && !staff && <span className="muted small">Libre</span>}
           </section>
         ))}
@@ -101,7 +116,35 @@ export default function Calendario() {
       {open && (staff
         ? <EventForm key={open.id || open.date} event={open} onClose={() => setOpen(null)} />
         : <EventView event={open} onClose={() => setOpen(null)} />)}
+      {notesFor && <TeamNotesModal key={notesFor} date={notesFor} value={teamNotes[notesFor] || ''} onClose={() => setNotesFor(null)} />}
     </main>
+  );
+}
+
+function TeamNotesModal({ date, value, onClose }) {
+  const [v, setV] = useState(value);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const save = async (e) => {
+    e.preventDefault();
+    setBusy(true); setError('');
+    try {
+      await setDoc(doc(db, C.days, date), { teamNotes: v.trim(), updatedAt: serverTimestamp() }, { merge: true });
+      onClose();
+    } catch (err) { setError(errMsg(err)); setBusy(false); }
+  };
+  return (
+    <Modal title={`Notas del equipo · ${dayName(date).slice(0, 3)} ${shortDate(date)}`} onClose={onClose}>
+      <form onSubmit={save} className="stack" style={{ gap: 20 }}>
+        <textarea className="textarea" style={{ minHeight: 200 }} value={v} onChange={(e) => setV(e.target.value)} placeholder="Cómo estuvo el día, qué se habló en grupo…" autoFocus />
+        {error && <p className="error" style={{ margin: 0 }}>{error}</p>}
+        <div className="row">
+          <button className="btn btn-primary" disabled={busy || v === value}>{busy ? 'Guardando…' : 'Guardar'}</button>
+          <button type="button" className="btn" onClick={onClose}>Cancelar</button>
+        </div>
+        <p className="muted small" style={{ margin: 0 }}>Solo las ve el staff. Para borrarlas, dejá el texto vacío y guardá.</p>
+      </form>
+    </Modal>
   );
 }
 
