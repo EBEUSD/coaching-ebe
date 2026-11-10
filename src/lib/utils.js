@@ -77,6 +77,9 @@ export function useLive(make, deps) {
 
 export const errMsg = (e) => {
   const code = e?.code || '';
+  // Cloud Functions: 'internal' suele ser que la función no está desplegada; el resto trae el mensaje en español.
+  if (code === 'functions/internal') return 'No se pudo contactar la función. ¿Está desplegada?';
+  if (code.startsWith('functions/') && e?.message) return e.message;
   if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) return 'Usuario o contraseña incorrectos.';
   if (code.includes('email-already-in-use')) return 'Ese usuario ya existe.';
   if (code.includes('weak-password')) return 'La contraseña tiene que tener al menos 6 caracteres.';

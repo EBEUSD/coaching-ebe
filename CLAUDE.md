@@ -17,6 +17,7 @@ Respondé en español rioplatense. Prefiero respuestas concisas y bloques de có
 - `src/pages/` — Login, Tablero, Scrims, Playbook, Biblioteca, Tareas, Jugadores, MiFicha, Admin.
 - `src/lib/constants.js` — MAPS, ROLES, STRAT_TYPES, STRAT_STATES, LIB_CATS, TASK_KINDS, BUYS, ROUND_ENDS, INITIAL_ROSTER.
 - `src/lib/utils.js` — fechas (`dateKey`, `todayKey`, `addDays`, `shortDate`, `dayTitle`), `randomPassword`, `slugUser`, `byNick`, `useLive(make, deps)` (onSnapshot sobre una query o un doc; devuelve `{data, loading, error}`), `errMsg` (errores de Firebase en español).
+- `functions/` — Cloud Functions (codebase `sot-coaching` en `firebase.json`, para no pisar funciones de Landing Creator). `sotSetPassword({uid, password})`: solo superadmin y solo cuentas que estén en `sot_users`/`sot_players`. Deploy: `npx firebase-tools deploy --only functions:sot-coaching`. No poner `engines` en `functions/package.json` (el gestor de Node local exige tener esa versión instalada); el runtime va en `firebase.json`.
 - `firebase/firestore.rules` y `firebase/storage.rules` — reglas completas (ya publicadas en la consola). Si las cambiás, hay que pegarlas a mano en la consola de Firebase.
 
 ## Modelo de datos (Firestore, todo con prefijo `sot_`)
@@ -51,7 +52,7 @@ Joshua (Emiliano, Flex), Keiks (Fabián, Centinela), Meiz (José, Iniciador/Smok
 ## Estado y pendientes
 - Hecho: todas las pantallas, alta y baja de jugadores (baja = active false, quedan archivados), panel /admin con roles, reglas publicadas.
 - Pendiente / ideas:
-  1. Cambiar contraseñas desde /admin (necesita una Cloud Function con Admin SDK: `updateUser(uid, {password})`, protegida por superadmin).
+  1. ~~Cambiar contraseñas desde /admin~~ — hecho (botón «Contraseña» en /admin + `sotSetPassword`). Falta desplegar la función.
   2. Code-splitting (el bundle pesa ~730 kB).
   3. Cerrar las reglas de Landing Creator (usa auth anónima).
   4. Dashboard de stats por jugador a partir de los scrims.

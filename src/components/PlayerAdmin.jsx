@@ -81,11 +81,11 @@ export function AddPlayerForm({ onDone, onCancel }) {
   );
 }
 
-export function CredentialsModal({ creds, onClose }) {
+export function CredentialsModal({ creds, onClose, title = 'Accesos creados' }) {
   const text = creds.map((c) => `${c.nick} · usuario: ${c.username} · contraseña: ${c.password}`).join('\n');
   const [copied, setCopied] = useState(false);
   return (
-    <Modal title="Accesos creados" onClose={onClose}>
+    <Modal title={title} onClose={onClose}>
       <p className="muted" style={{ margin: 0 }}>Copialos ahora: las contraseñas no se vuelven a mostrar. Cada jugador entra en la app con su usuario y contraseña.</p>
       <div className="stack" style={{ gap: 0 }}>
         {creds.map((c) => (

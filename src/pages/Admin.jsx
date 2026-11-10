@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
 import { collection, doc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
-import { C, createPlayerAccount, db } from '../firebase';
+import { C, createPlayerAccount, db, setUserPassword } from '../firebase';
 import { useAuth } from '../auth';
 import { ROLES } from '../lib/constants';
 import { errMsg, randomPassword, slugUser, useLive } from '../lib/utils';
 import { CredentialsModal, playerProfile } from '../components/PlayerAdmin';
-import { Loading } from '../components/ui';
+import { Loading, Modal } from '../components/ui';
 
 const APP_ROLES = [
   ['player', 'Jugador'],
@@ -21,6 +21,8 @@ export default function Admin() {
   const [filter, setFilter] = useState('all');
   const [q, setQ] = useState('');
   const [creds, setCreds] = useState(null);
+  const [pwFor, setPwFor] = useState(null);
+  const [pwCreds, setPwCreds] = useState(null);
   const [error, setError] = useState('');
 
   const playerById = useMemo(() => Object.fromEntries((players.data || []).map((p) => [p.id, p])), [players.data]);
@@ -101,6 +103,7 @@ export default function Admin() {
                 <select className="select" style={{ width: 'auto', minWidth: 150 }} value={u.role} disabled={self} onChange={(e) => changeRole(u, e.target.value)} aria-label={`Rol de ${u.username}`}>
                   {APP_ROLES.map(([r, l]) => <option key={r} value={r}>{l}</option>)}
                 </select>
+                <button className="btn btn-ghost" style={{ minWidth: 110 }} onClick={() => setPwFor(u)}>Contraseña</button>
                 {self
                   ? <span className="muted small" style={{ minWidth: 110, textAlign: 'center' }}>Activo</span>
                   : <button className={`btn ${u.active === false ? 'btn-light' : 'btn-ghost'}`} style={{ minWidth: 110 }} onClick={() => setActive(u, u.active === false)}>{u.active === false ? 'Activar' : 'Desactivar'}</button>}
@@ -110,12 +113,54 @@ export default function Admin() {
           {!users.loading && rows.length === 0 && <p className="empty">No hay usuarios con ese filtro.</p>}
         </div>
         <p className="muted small" style={{ margin: 0, lineHeight: 1.5 }}>
-          Desactivar corta el acceso al instante y conserva todos los datos. Las contraseñas solo se ven al crear el usuario; si alguien la olvida, desactivalo y creale un usuario nuevo, o usá su email real como usuario para que pueda restablecerla.
+          Desactivar corta el acceso al instante y conserva todos los datos. Las contraseñas solo se ven al crearlas; si alguien la olvida, usá «Contraseña» para ponerle una nueva.
         </p>
       </section>
 
       {creds && <CredentialsModal creds={creds} onClose={() => setCreds(null)} />}
+      {pwFor && <PasswordModal row={pwFor} onClose={() => setPwFor(null)} onDone={(c) => { setPwFor(null); setPwCreds(c); }} />}
+      {pwCreds && <CredentialsModal title="Contraseña nueva" creds={pwCreds} onClose={() => setPwCreds(null)} />}
     </main>
+  );
+}
+
+function PasswordModal({ row, onClose, onDone }) {
+  const [password, setPassword] = useState(randomPassword);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const who = row.nick || row.name || row.username;
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (password.length < 6) { setError('La contraseña tiene que tener al menos 6 caracteres.'); return; }
+    setBusy(true);
+    try {
+      await setUserPassword(row.id, password);
+      onDone([{ nick: who, username: row.username, password }]);
+    } catch (err) {
+      setError(errMsg(err));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title={`Contraseña de ${who}`} onClose={onClose}>
+      <form onSubmit={submit} className="stack" style={{ gap: 20 }}>
+        <p className="muted" style={{ margin: 0 }}>La contraseña actual deja de funcionar. Las sesiones abiertas siguen activas hasta que cierre sesión.</p>
+        <label className="field"><span>Contraseña nueva</span>
+          <span className="row" style={{ flexWrap: 'nowrap', gap: 4 }}>
+            <input className="input" style={{ fontFamily: 'monospace' }} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="off" />
+            <button type="button" className="btn" onClick={() => setPassword(randomPassword())}>Generar</button>
+          </span>
+        </label>
+        {error && <p className="error" style={{ margin: 0 }}>{error}</p>}
+        <div className="row">
+          <button className="btn btn-primary" disabled={busy}>{busy ? 'Guardando…' : 'Cambiar contraseña'}</button>
+          <button type="button" className="btn" onClick={onClose}>Cancelar</button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

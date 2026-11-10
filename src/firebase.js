@@ -8,6 +8,7 @@ import {
 } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 // Config pública del proyecto landing-creator (es segura en el cliente;
 // la seguridad la dan las reglas de Firestore y Storage).
@@ -24,6 +25,10 @@ export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+const functions = getFunctions(app, 'us-central1');
+
+// Cambia la contraseña de un usuario (Cloud Function, solo super admin).
+export const setUserPassword = (uid, password) => httpsCallable(functions, 'sotSetPassword')({ uid, password });
 
 // Los jugadores entran con usuario (ej: "kai"). Por debajo es un email ficticio.
 export const USER_DOMAIN = 'sot-coaching.app';
