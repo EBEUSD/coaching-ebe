@@ -30,7 +30,7 @@ Respondé en español rioplatense. Prefiero respuestas concisas y bloques de có
 - `sot_tasks/{id}` — `{playerId, title, kind, due (YYYY-MM-DD), done}`.
 - `sot_scrims/{id}` — `{date, map, rival, startSide, vod, rounds:[{r:'W'|'L', buy, rivalBuy, how, strat, note}], stats:[{playerId, nick, agent, k, d, a, acs, fb, note}], good, fix, next}`.
 - `sot_strats/{id}` — `{map, side:'Ataque'|'Defensa', type, site, name, state, desc, roles:[{who, what}], image, vod}`.
-- `sot_events/{id}` — `{date (YYYY-MM-DD), time (HH:MM), kind (EVENT_KINDS), title, note}`. La semana se pide con rango sobre `date` (un solo campo, sin índice).
+- `sot_events/{id}` — `{date (YYYY-MM-DD), time (HH:MM, hora Argentina; se muestra también México = AR − 3 h), kind (EVENT_KINDS), title, note}`. La semana se pide con rango sobre `date` (un solo campo, sin índice).
 - `sot_library/{id}` — `{title, cat, kind:'PDF'|'Video'|'Link'|'Imagen'|'Archivo', url, path (Storage), tags[], date}`.
 - Storage: archivos en `sot/library/...` y `sot/strats/{id}/...`.
 

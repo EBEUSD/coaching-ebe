@@ -6,6 +6,21 @@ import { EVENT_KINDS } from '../lib/constants';
 import { addDays, dayName, errMsg, shortDate, todayKey, useLive, weekStart } from '../lib/utils';
 import { Icon, ICONS, Loading, Modal } from '../components/ui';
 
+// La hora se carga en Argentina (UTC-3). México (UTC-6, sin horario de verano) va 3 horas atrás.
+const MX_OFFSET_MIN = -3 * 60;
+const pad = (n) => String(n).padStart(2, '0');
+const toMx = (time) => {
+  if (!time) return null;
+  const [h, m] = time.split(':').map(Number);
+  const total = h * 60 + m + MX_OFFSET_MIN;
+  const mins = ((total % 1440) + 1440) % 1440;
+  return { time: `${pad(Math.floor(mins / 60))}:${pad(mins % 60)}`, prevDay: total < 0 };
+};
+// México con aclaración si cae el día anterior: "17:00" o "22:00 (día anterior)".
+const mxLabel = (time) => {
+  const mx = toMx(time);
+  return mx ? `${mx.time}${mx.prevDay ? ' (día anterior)' : ''}` : '';
+};
 export default function Calendario() {
   const { staff } = useAuth();
   const today = todayKey();
@@ -52,7 +67,8 @@ export default function Calendario() {
             </div>
             {(byDay[d] || []).map((e) => (
               <button key={e.id} className="event" onClick={() => setOpen(e)}>
-                <span className="lbl muted" style={{ fontSize: 10 }}>{e.time ? `${e.time} · ` : ''}{e.kind}</span>
+                {e.time && <span className="small" style={{ fontWeight: 600 }}>{e.time} AR <span className="muted">· {mxLabel(e.time)} MX</span></span>}
+                <span className="lbl muted" style={{ fontSize: 10 }}>{e.kind}</span>
                 <span style={{ fontWeight: 600, lineHeight: 1.3 }}>{e.title || e.kind}</span>
               </button>
             ))}
@@ -73,7 +89,9 @@ function EventView({ event, onClose }) {
   return (
     <Modal title={event.title || event.kind} onClose={onClose}>
       <div className="stack" style={{ gap: 0 }}>
-        <div className="kv"><span className="muted">Día</span><strong>{dayName(event.date)} {shortDate(event.date)}{event.time ? ` · ${event.time}` : ''}</strong></div>
+        <div className="kv"><span className="muted">Día</span><strong>{dayName(event.date)} {shortDate(event.date)}</strong></div>
+        {event.time && <div className="kv"><span className="muted">Hora Argentina</span><strong>{event.time}</strong></div>}
+        {event.time && <div className="kv"><span className="muted">Hora México</span><strong>{mxLabel(event.time)}</strong></div>}
         <div className="kv"><span className="muted">Tipo</span><strong>{event.kind}</strong></div>
       </div>
       {event.note && <p style={{ margin: 0, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{event.note}</p>}
@@ -116,7 +134,8 @@ function EventForm({ event, onClose }) {
         </div>
         <div className="form-grid">
           <label className="field"><span>Día</span><input className="input" type="date" value={f.date} onChange={set('date')} /></label>
-          <label className="field"><span>Hora</span><input className="input" type="time" value={f.time} onChange={set('time')} /></label>
+          <label className="field"><span>Hora Argentina</span><input className="input" type="time" value={f.time} onChange={set('time')} /></label>
+          <div className="field"><span>Hora México</span><div className="input" style={{ display: 'flex', alignItems: 'center', color: 'var(--muted)' }}>{f.time ? mxLabel(f.time) : '—'}</div></div>
         </div>
         <label className="field"><span>Título</span><input className="input" value={f.title} onChange={set('title')} placeholder={f.kind === 'Scrim' ? 'vs Rival · Mapa' : f.kind} /></label>
         <label className="field"><span>Nota</span><textarea className="textarea" value={f.note} onChange={set('note')} placeholder="Qué se va a trabajar, link del VOD, quiénes…" /></label>
