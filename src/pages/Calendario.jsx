@@ -106,6 +106,28 @@ function EventView({ event, onClose }) {
   );
 }
 
+// Hora con minutos de a 15 (00, 15, 30, 45). Si un evento viejo tiene otro minuto, se conserva como opción.
+const HOURS = Array.from({ length: 24 }, (_, i) => pad(i));
+const MINUTES = ['00', '15', '30', '45'];
+function TimeSelect({ value, onChange, label }) {
+  const [h, m] = value ? value.split(':') : ['', ''];
+  const mins = m && !MINUTES.includes(m) ? [...MINUTES, m].sort() : MINUTES;
+  const change = (nh, nm) => onChange(nh === '' ? '' : `${nh}:${nm || '00'}`);
+  return (
+    <span className="row" style={{ flexWrap: 'nowrap', gap: 4 }}>
+      <select className="select" value={h} onChange={(e) => change(e.target.value, m)} aria-label={`Hora ${label}`}>
+        <option value="">--</option>
+        {HOURS.map((x) => <option key={x} value={x}>{x}</option>)}
+      </select>
+      <span aria-hidden="true">:</span>
+      <select className="select" value={m} disabled={!h} onChange={(e) => change(h, e.target.value)} aria-label={`Minutos ${label}`}>
+        {!h && <option value="">--</option>}
+        {mins.map((x) => <option key={x} value={x}>{x}</option>)}
+      </select>
+    </span>
+  );
+}
+
 function EventForm({ event, onClose }) {
   const isNew = !event.id;
   const [f, setF] = useState({
@@ -157,8 +179,8 @@ function EventForm({ event, onClose }) {
         </div>
         <div className="form-grid">
           <label className="field"><span>Día ({zone === 'mx' ? 'México' : 'Argentina'})</span><input className="input" type="date" value={f.date} onChange={set('date')} /></label>
-          <label className="field"><span>Hora Argentina</span><input className="input" type="time" value={f.time} onChange={(e) => setAr(e.target.value)} /></label>
-          <label className="field"><span>Hora México</span><input className="input" type="time" value={mx} onChange={(e) => setMxTime(e.target.value)} /></label>
+          <div className="field"><span>Hora Argentina</span><TimeSelect value={f.time} onChange={setAr} label="Argentina" /></div>
+          <div className="field"><span>Hora México</span><TimeSelect value={mx} onChange={setMxTime} label="México" /></div>
         </div>
         {crossNote && <p className="muted small" style={{ margin: 0 }}>{crossNote}</p>}
         <label className="field"><span>Título</span><input className="input" value={f.title} onChange={set('title')} placeholder={f.kind === 'Scrim' ? 'vs Rival · Mapa' : f.kind === 'Torneo' ? 'Nombre del torneo · fase' : f.kind} /></label>
