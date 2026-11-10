@@ -36,7 +36,7 @@ Respondé en español rioplatense. Prefiero respuestas concisas y bloques de có
 - Superadmin = documento en `sot_coaches` o `sot_users` con role superadmin y active. Coach = role coach y active. Staff = superadmin o coach.
 - Jugador = `sot_players/{uid}.active == true`. Lee su propia ficha y sus `sot_notes`/`sot_tasks` (las queries tienen que filtrar por `where('playerId','==',uid)`), más `sot_strats` y `sot_library`.
 - `sot_days` y `sot_scrims`: solo staff. Un coach solo puede crear o editar usuarios jugador; el superadmin maneja todo.
-- Landing Creator: sus colecciones (`calEvents`, `stores`, `teams`, `wishlists`) siguen públicas a propósito; en Storage queda público todo lo que no está en `sot/`. NO romper eso. Usa login anónimo; cerrarlas queda pendiente.
+- Landing Creator: sus colecciones (`calEvents`, `stores`, `teams`, `wishlists`) siguen públicas a propósito; en Storage queda público todo lo que no está en `sot/`. NO romper eso. Repo: github.com/EBEUSD/landing-creator. Desde nov 2026 hace `signInAnonymously` antes de montar (si falla arranca igual) y su `firebase.json` ya no despliega reglas: las reglas de TODO el proyecto viven solo en este repo (`firebase/*.rules`). Usa `stores`, `teams`, `calEvents` (`wishlists` no aparece en el código, se dejó igual) y Storage `ref-images/`, `canvas-images/`; el resto del bucket fuera de `sot/` queda cerrado. Tiene la función `vtex` en el codebase default.
 - Evitar queries que necesiten índices compuestos: filtrar con un solo `where` y ordenar del lado del cliente.
 
 ## Marca (manual de Storm of Thorns)
@@ -54,6 +54,6 @@ Joshua (Emiliano, Flex), Keiks (Fabián, Centinela), Meiz (José, Iniciador/Smok
 - Pendiente / ideas:
   1. ~~Cambiar contraseñas desde /admin~~ — hecho (botón «Contraseña» en /admin + `sotSetPassword`). Falta desplegar la función.
   2. Code-splitting (el bundle pesa ~730 kB).
-  3. Cerrar las reglas de Landing Creator (usa auth anónima).
+  3. Cerrar las reglas de Landing Creator — código hecho; falta activar el proveedor Anónimo, redeployar Landing Creator, probarlo y recién ahí publicar las reglas nuevas.
   4. Dashboard de stats por jugador a partir de los scrims.
 - Antes de cambiar el modelo de datos o las reglas, avisame qué cambia y dame las reglas completas para pegar en la consola.

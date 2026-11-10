@@ -4,23 +4,35 @@ service firebase.storage {
   match /b/{bucket}/o {
 
     // ================= LANDING CREATOR =================
-    // Todo lo que NO está en la carpeta "sot" queda igual que hoy (público).
-    match /{folder}/{allPaths=**} {
-      allow read, write: if folder != 'sot';
+    // Inicia sesión anónima al abrir: exige estar logueado, solo en sus carpetas.
+    // Las imágenes ya subidas se siguen viendo por su URL de descarga (lleva token).
+    match /ref-images/{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+    match /canvas-images/{allPaths=**} {
+      allow read, write: if request.auth != null;
     }
 
     // ================== SOT COACHING ===================
+    function sotUserDoc() {
+      return firestore.get(/databases/(default)/documents/sot_users/$(request.auth.uid)).data;
+    }
     function sotStaff() {
       return request.auth != null && (
         firestore.exists(/databases/(default)/documents/sot_coaches/$(request.auth.uid))
         || (firestore.exists(/databases/(default)/documents/sot_users/$(request.auth.uid))
-            && firestore.get(/databases/(default)/documents/sot_users/$(request.auth.uid)).data.role in ['coach', 'superadmin']
-            && firestore.get(/databases/(default)/documents/sot_users/$(request.auth.uid)).data.active == true)
+            && sotUserDoc().role in ['coach', 'superadmin']
+            && sotUserDoc().active == true)
       );
+    }
+    function sotPlayer() {
+      return request.auth != null
+        && firestore.exists(/databases/(default)/documents/sot_players/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/sot_players/$(request.auth.uid)).data.active == true;
     }
 
     match /sot/{allPaths=**} {
-      allow read: if request.auth != null;
+      allow read: if sotStaff() || sotPlayer();
       allow create, update: if sotStaff() && request.resource.size < 50 * 1024 * 1024;
       allow delete: if sotStaff();
     }
