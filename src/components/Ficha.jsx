@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { collection, doc, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
+import { collection, deleteDoc, doc, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
 import { C, db } from '../firebase';
-import { ROLES } from '../lib/constants';
-import { shortDate, todayKey, useLive } from '../lib/utils';
+import { EVENT_KINDS, ROLES } from '../lib/constants';
+import { errMsg, shortDate, todayKey, useLive } from '../lib/utils';
 import { Check, Icon, ICONS, Loading } from './ui';
 import PlayerStats from './PlayerStats';
 
@@ -12,6 +12,7 @@ export default function Ficha({ playerId, editable, canCheck }) {
   const notes = useLive(() => query(collection(db, C.notes), where('playerId', '==', playerId)), [playerId]);
   const tasks = useLive(() => query(collection(db, C.tasks), where('playerId', '==', playerId)), [playerId]);
   const [tab, setTab] = useState('goals');
+  const [noteDate, setNoteDate] = useState(todayKey);
 
   const log = useMemo(() => (notes.data || []).filter((n) => n.note || n.focus).sort((a, b) => b.date.localeCompare(a.date)), [notes.data]);
   const tlist = useMemo(() => (tasks.data || []).slice().sort((a, b) => (a.done - b.done) || (a.due || '').localeCompare(b.due || '')), [tasks.data]);
@@ -46,17 +47,23 @@ export default function Ficha({ playerId, editable, canCheck }) {
       {tab === 'goals' && <Goals player={p} editable={editable} />}
 
       {tab === 'notes' && (
-        <div>
-          {log.length === 0 && <p className="empty">Todavía no hay notas.</p>}
-          {log.map((n) => (
-            <div key={n.id} style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: 16, padding: '16px 0', borderBottom: '1px solid var(--line)' }}>
-              <span className="muted small">{shortDate(n.date)} · {n.kind || 'Clase'}</span>
-              <span className="stack" style={{ gap: 6 }}>
-                {n.note && <span style={{ lineHeight: 1.5 }}>{n.note}</span>}
-                {n.focus && <span style={{ fontWeight: 600, paddingLeft: 10, borderLeft: '3px solid var(--carmesi)' }}>Foco: {n.focus}</span>}
-              </span>
-            </div>
-          ))}
+        <div className="stack" style={{ gap: 32 }}>
+          {editable && (
+            <NoteForm key={noteDate} playerId={playerId} date={noteDate} setDate={setNoteDate} existing={(notes.data || []).find((n) => n.date === noteDate)} />
+          )}
+          <div>
+            {log.length === 0 && <p className="empty">Todavía no hay notas.</p>}
+            {log.map((n) => (
+              <div key={n.id} style={{ display: 'grid', gridTemplateColumns: '110px 1fr auto', gap: 16, padding: '16px 0', borderBottom: '1px solid var(--line)', alignItems: 'start' }}>
+                <span className="muted small">{shortDate(n.date)} · {n.kind || 'Clase'}</span>
+                <span className="stack" style={{ gap: 6 }}>
+                  {n.note && <span style={{ lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{n.note}</span>}
+                  {n.focus && <span style={{ fontWeight: 600, paddingLeft: 10, borderLeft: '3px solid var(--carmesi)' }}>Foco: {n.focus}</span>}
+                </span>
+                {editable ? <button className="btn" style={{ minHeight: 32 }} onClick={() => setNoteDate(n.date)}>{noteDate === n.date ? 'Editando' : 'Editar'}</button> : <span />}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -81,6 +88,60 @@ export default function Ficha({ playerId, editable, canCheck }) {
       {tab === 'stats' && editable && <PlayerStats playerId={playerId} />}
       {tab === 'edit' && editable && <EditData player={p} />}
     </div>
+  );
+}
+
+// Una nota por jugador y por día (id = fecha_jugador, igual que antes en el Tablero).
+// Elegir un día que ya tiene nota la carga para editarla.
+function NoteForm({ playerId, date, setDate, existing }) {
+  const [f, setF] = useState({ kind: existing?.kind || 'Clase', note: existing?.note || '', focus: existing?.focus || '' });
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(true);
+  const [confirmDel, setConfirmDel] = useState(false);
+  const [error, setError] = useState('');
+  const set = (k) => (e) => { setF({ ...f, [k]: e.target.value }); setSaved(false); };
+  const id = `${date}_${playerId}`;
+
+  const run = async (fn) => {
+    setBusy(true); setError('');
+    try { await fn(); } catch (e) { setError(errMsg(e)); } finally { setBusy(false); }
+  };
+  const save = (e) => {
+    e.preventDefault();
+    if (!date) { setError('Elegí el día.'); return; }
+    if (!f.note.trim() && !f.focus.trim()) { setError('Escribí la nota o el foco.'); return; }
+    run(async () => {
+      await setDoc(doc(db, C.notes, id), { date, playerId, kind: f.kind, note: f.note.trim(), focus: f.focus.trim(), updatedAt: serverTimestamp() }, { merge: true });
+      setSaved(true);
+    });
+  };
+
+  return (
+    <form onSubmit={save} className="panel stack" style={{ gap: 20, padding: 24 }}>
+      <div className="row between">
+        <h2 className="d h3">{existing ? `Nota del ${shortDate(date)}` : 'Nueva nota'}</h2>
+        {existing && date !== todayKey() && <button type="button" className="btn" onClick={() => setDate(todayKey())}>Nueva para hoy</button>}
+      </div>
+      <div className="form-grid">
+        <label className="field"><span>Día</span><input className="input" style={{ background: 'var(--negro)' }} type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
+        <label className="field"><span>Tipo</span>
+          <select className="select" style={{ background: 'var(--negro)' }} value={f.kind} onChange={set('kind')}>{EVENT_KINDS.map((k) => <option key={k}>{k}</option>)}</select>
+        </label>
+      </div>
+      <label className="field"><span>Nota</span>
+        <textarea className="textarea" style={{ background: 'var(--negro)' }} value={f.note} onChange={set('note')} placeholder="Qué trabajó, qué viste, qué tiene que corregir…" />
+      </label>
+      <label className="field"><span>Foco</span>
+        <input className="input" style={{ background: 'var(--negro)' }} value={f.focus} onChange={set('focus')} placeholder="Una sola cosa para el próximo entrenamiento" />
+      </label>
+      {error && <p className="error" style={{ margin: 0 }}>{error}</p>}
+      <div className="row between">
+        <button className="btn btn-primary" disabled={busy || saved}>{busy ? 'Guardando…' : saved && existing ? 'Guardada' : 'Guardar nota'}</button>
+        {existing && (confirmDel
+          ? <button type="button" className="btn btn-danger" disabled={busy} onClick={() => run(async () => { await deleteDoc(doc(db, C.notes, id)); setDate(todayKey()); })}>Confirmar borrado</button>
+          : <button type="button" className="btn btn-ghost" onClick={() => setConfirmDel(true)}>Borrar</button>)}
+      </div>
+    </form>
   );
 }
 
