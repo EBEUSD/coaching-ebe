@@ -45,6 +45,16 @@ button { cursor: pointer; }
 .nav a { display: block; padding: 10px 14px; color: var(--muted); border-bottom: 2px solid transparent; }
 .nav a.active { color: var(--blanco); border-bottom-color: var(--carmesi); }
 .nav a:hover { color: var(--blanco); }
+/* App instalada en iPhone: que nada quede debajo del notch. */
+.topbar { padding-top: max(14px, env(safe-area-inset-top)); padding-left: max(40px, env(safe-area-inset-left)); padding-right: max(40px, env(safe-area-inset-right)); }
+/* Celular: logo y Salir arriba; las secciones en una fila que se desliza de costado. */
+@media (max-width: 760px) {
+  .topbar { gap: 4px 12px; }
+  .topbar > .row { margin-left: auto; }
+  .nav { order: 3; flex: 1 1 100%; flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px; padding: 0 6px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav a { flex: none; white-space: nowrap; padding: 13px 12px; }
+}
 .page { max-width: 1360px; margin: 0 auto; padding: 24px 40px 80px; display: flex; flex-direction: column; gap: 32px; }
 .page.narrow { max-width: 1080px; }
 .row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
@@ -174,7 +184,7 @@ td .input, td .select { min-height: 40px; min-width: 64px; }
 .bars button:hover span, .bars button:focus-visible span, .bars button.on span { background: var(--blanco); }
 
 @media (max-width: 640px) {
-  .topbar { padding: 12px 16px; }
+  .topbar { padding: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left)); }
   .page { padding: 16px 16px 64px; }
   .modal { padding: 20px; }
 }

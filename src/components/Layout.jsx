@@ -1,5 +1,5 @@
-import { Suspense } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { Suspense, useEffect } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { Loading } from './ui';
 
@@ -22,8 +22,15 @@ const PLAYER_NAV = [
 
 export default function Layout() {
   const { role, staff, player, profile, logout } = useAuth();
+  const { pathname } = useLocation();
   const nav = staff ? [...COACH_NAV, ...(role === 'superadmin' ? [['/admin', 'Admin']] : [])] : PLAYER_NAV;
   const who = role === 'superadmin' ? 'Super admin' : role === 'coach' ? (profile?.name || 'Coach') : player?.nick;
+
+  // En el celular el menú se desliza: deja la sección activa a la vista.
+  useEffect(() => {
+    document.querySelector('.nav a.active')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }, [pathname]);
+
   return (
     <>
       <header className="topbar">

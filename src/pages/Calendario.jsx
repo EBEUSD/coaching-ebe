@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { addDoc, collection, deleteDoc, doc, documentId, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
+import { Link, useNavigate } from 'react-router-dom';
+import { addDoc, collection, deleteDoc, doc, documentId, getDocs, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore';
 import { C, db } from '../firebase';
 import { useAuth } from '../auth';
-import { EVENT_KINDS } from '../lib/constants';
-import { addDays, dayName, errMsg, score, shortDate, todayKey, useLive, weekStart } from '../lib/utils';
+import { EVENT_KINDS, MAPS } from '../lib/constants';
+import { createScrim } from '../lib/scrims';
+import { addDays, dayName, errMsg, fromKey, score, shortDate, todayKey, useLive, weekStart } from '../lib/utils';
 import { Icon, ICONS, Loading, Modal } from '../components/ui';
 
 // Se guarda en hora de Argentina (UTC-3). México (UTC-6, sin horario de verano) va 3 horas atrás.
@@ -40,11 +41,13 @@ export default function Calendario() {
   const events = useLive(() => query(collection(db, C.events), where('date', '>=', start), where('date', '<=', end)), [start]);
   // Scrims cargados esa semana (solo staff: sot_scrims es solo staff).
   const scrims = useLive(() => (staff ? query(collection(db, C.scrims), where('date', '>=', start), where('date', '<=', end)) : null), [start, staff]);
+  const scrimById = useMemo(() => Object.fromEntries((scrims.data || []).map((s) => [s.id, s])), [scrims.data]);
+  const linked = useMemo(() => new Set((events.data || []).map((e) => e.scrimId).filter(Boolean)), [events.data]);
   const scrimsByDay = useMemo(() => {
     const m = {};
-    (scrims.data || []).forEach((s) => { (m[s.date] ||= []).push(s); });
+    (scrims.data || []).filter((s) => !linked.has(s.id)).forEach((s) => { (m[s.date] ||= []).push(s); });
     return m;
-  }, [scrims.data]);
+  }, [scrims.data, linked]);
   // Notas del equipo (sot_days/{fecha}, solo staff). El id es la fecha: rango sobre documentId, sin índice.
   const dayDocs = useLive(() => (staff ? query(collection(db, C.days), where(documentId(), '>=', start), where(documentId(), '<=', end)) : null), [start, staff]);
   const teamNotes = useMemo(() => Object.fromEntries((dayDocs.data || []).filter((x) => x.teamNotes).map((x) => [x.id, x.teamNotes])), [dayDocs.data]);
@@ -87,7 +90,10 @@ export default function Calendario() {
               <button key={e.id} className="event" onClick={() => setOpen(e)}>
                 {e.time && <span className="small" style={{ fontWeight: 600 }}>{e.time} AR <span className="muted">· {mxLabel(e.time)} MX</span></span>}
                 <span className="lbl muted" style={{ fontSize: 10 }}>{e.kind}</span>
-                <span style={{ fontWeight: 600, lineHeight: 1.3 }}>{e.title || e.kind}</span>
+                <span style={{ fontWeight: 600, lineHeight: 1.3 }}>{eventTitle(e)}</span>
+                {(e.map || scrimById[e.scrimId] || e.libraryId) && (
+                  <span className="muted small">{[e.map, scrimById[e.scrimId] && score(scrimById[e.scrimId]), e.libraryId && 'Con material'].filter(Boolean).join(' · ')}</span>
+                )}
               </button>
             ))}
             {(scrimsByDay[d] || []).map((s) => (
@@ -148,14 +154,36 @@ function TeamNotesModal({ date, value, onClose }) {
   );
 }
 
+// Nombre que se muestra: el título, o "vs Rival" en un scrim sin título, o el tipo.
+export const eventTitle = (e) => e.title || (e.kind === 'Scrim' && e.rival ? `vs ${e.rival}` : e.kind);
+
+// Material de la Biblioteca asociado a un evento (lo leen staff y jugadores).
+function Material({ id }) {
+  const item = useLive(() => (id ? doc(db, C.library, id) : null), [id]);
+  if (!id || item.loading) return null;
+  if (!item.data) return <div className="kv"><span className="muted">Material</span><span className="muted">No disponible</span></div>;
+  return (
+    <div className="kv" style={{ alignItems: 'center' }}>
+      <span className="muted">Material</span>
+      <span className="row" style={{ gap: 12, justifyContent: 'flex-end' }}>
+        <strong>{item.data.title}</strong>
+        {item.data.url && <a className="btn btn-light" href={item.data.url} target="_blank" rel="noreferrer">Abrir</a>}
+      </span>
+    </div>
+  );
+}
+
 function EventView({ event, onClose }) {
   return (
-    <Modal title={event.title || event.kind} onClose={onClose}>
+    <Modal title={eventTitle(event)} onClose={onClose}>
       <div className="stack" style={{ gap: 0 }}>
         <div className="kv"><span className="muted">Día</span><strong>{dayName(event.date)} {shortDate(event.date)}</strong></div>
         {event.time && <div className="kv"><span className="muted">Hora Argentina</span><strong>{event.time}</strong></div>}
         {event.time && <div className="kv"><span className="muted">Hora México</span><strong>{mxLabel(event.time)}</strong></div>}
         <div className="kv"><span className="muted">Tipo</span><strong>{event.kind}</strong></div>
+        {event.rival && <div className="kv"><span className="muted">Rival</span><strong>{event.rival}</strong></div>}
+        {event.map && <div className="kv"><span className="muted">Mapa</span><strong>{event.map}</strong></div>}
+        <Material id={event.libraryId} />
       </div>
       {event.note && <p style={{ margin: 0, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{event.note}</p>}
       <button className="btn" style={{ alignSelf: 'flex-start' }} onClick={onClose}>Cerrar</button>
@@ -185,15 +213,29 @@ function TimeSelect({ value, onChange, label }) {
   );
 }
 
+const WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+const weekdayOf = (k) => (fromKey(k).getDay() + 6) % 7; // 0 = lunes
+
 function EventForm({ event, onClose }) {
+  const navigate = useNavigate();
   const isNew = !event.id;
   const [f, setF] = useState({
     date: event.date, time: event.time || '', kind: event.kind || EVENT_KINDS[0], title: event.title || '', note: event.note || '',
+    libraryId: event.libraryId || '', rival: event.rival || '', map: event.map || '',
   });
   const [busy, setBusy] = useState(false);
-  const [confirmDel, setConfirmDel] = useState(false);
+  const [confirmDel, setConfirmDel] = useState('');
   const [error, setError] = useState('');
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const library = useLive(() => collection(db, C.library), []);
+  const players = useLive(() => query(collection(db, C.players), where('active', '==', true)), []);
+  const isScrim = f.kind === 'Scrim';
+
+  // Repetir (solo al crear): días de la semana y cantidad de semanas.
+  const [repeat, setRepeat] = useState(false);
+  const [weekdays, setWeekdays] = useState(() => [weekdayOf(event.date)]);
+  const [weeks, setWeeks] = useState(4);
+
   // Se puede cargar la hora en cualquiera de las dos zonas; el "Día" es el de la zona que cargaste.
   const [zone, setZone] = useState('ar');
   const [mx, setMx] = useState(() => toMx(event.time)?.time || '');
@@ -207,24 +249,79 @@ function EventForm({ event, onClose }) {
     setMx(v); setF({ ...f, date, time: v ? fromMx(v).time : '' }); setZone('mx');
   };
   const arDayShift = zone === 'mx' && mx ? fromMx(mx).day : 0; // MX tarde → en AR ya es el día siguiente
-  const arDate = f.date && arDayShift ? addDays(f.date, arDayShift) : f.date;
+  const toAr = (d) => (d && arDayShift ? addDays(d, arDayShift) : d);
+  const arDate = toAr(f.date);
   const crossNote = !f.time ? ''
     : zone === 'mx' ? (arDayShift ? `En Argentina es el día siguiente: se guarda el ${shortDate(arDate)} a las ${f.time}.` : '')
       : (toMx(f.time).prevDay ? 'En México es el día anterior.' : '');
 
+  // Fechas de la serie (en la zona del formulario), desde el día elegido en adelante.
+  const seriesDates = useMemo(() => {
+    if (!repeat || !f.date) return [];
+    const monday = weekStart(f.date);
+    const out = [];
+    for (let w = 0; w < weeks; w++) {
+      weekdays.slice().sort().forEach((wd) => {
+        const d = addDays(monday, w * 7 + wd);
+        if (d >= f.date) out.push(d);
+      });
+    }
+    return out;
+  }, [repeat, f.date, weekdays, weeks]);
+
+  const payload = () => ({
+    ...f, date: arDate, title: f.title.trim(), note: f.note.trim(), rival: isScrim ? f.rival.trim() : '', map: isScrim ? f.map : '', updatedAt: serverTimestamp(),
+  });
+
   const run = async (fn) => {
     setBusy(true);
     setError('');
-    try { await fn(); onClose(); } catch (e) { setError(errMsg(e)); setBusy(false); }
+    try { await fn(); } catch (e) { setError(errMsg(e)); setBusy(false); }
   };
+
   const save = (e) => {
     e.preventDefault();
     if (!f.date) { setError('Elegí el día.'); return; }
-    const data = { ...f, date: arDate, title: f.title.trim(), note: f.note.trim(), updatedAt: serverTimestamp() };
-    run(() => (isNew
-      ? addDoc(collection(db, C.events), { ...data, createdAt: serverTimestamp() })
-      : updateDoc(doc(db, C.events, event.id), data)));
+    if (repeat && !seriesDates.length) { setError('Elegí al menos un día de la semana.'); return; }
+    run(async () => {
+      const data = payload();
+      if (!isNew) await updateDoc(doc(db, C.events, event.id), data);
+      else if (!repeat) await addDoc(collection(db, C.events), { ...data, createdAt: serverTimestamp() });
+      else {
+        const batch = writeBatch(db);
+        const seriesId = doc(collection(db, C.events)).id;
+        seriesDates.forEach((d) => batch.set(doc(collection(db, C.events)), { ...data, date: toAr(d), seriesId, createdAt: serverTimestamp() }));
+        await batch.commit();
+      }
+      onClose();
+    });
   };
+
+  // Guarda el evento y crea su scrim (o abre el que ya tiene).
+  const saveAndScrim = () => {
+    if (!f.date) { setError('Elegí el día.'); return; }
+    run(async () => {
+      const data = payload();
+      let id = event.id;
+      if (isNew) id = (await addDoc(collection(db, C.events), { ...data, createdAt: serverTimestamp() })).id;
+      const scrimId = await createScrim({ date: data.date, map: data.map, rival: data.rival, roster: players.data });
+      await updateDoc(doc(db, C.events, id), { ...(isNew ? {} : data), scrimId });
+      navigate(`/scrims?id=${scrimId}`);
+    });
+  };
+
+  const remove = (all) => run(async () => {
+    if (!all) await deleteDoc(doc(db, C.events, event.id));
+    else {
+      const snap = await getDocs(query(collection(db, C.events), where('seriesId', '==', event.seriesId)));
+      const batch = writeBatch(db);
+      snap.docs.filter((d) => (d.data().date || '') >= event.date).forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
+    onClose();
+  });
+
+  const libs = (library.data || []).slice().sort((a, b) => (a.title || '').localeCompare(b.title || ''));
 
   return (
     <Modal title={isNew ? 'Nuevo evento' : 'Editar evento'} onClose={onClose}>
@@ -237,7 +334,7 @@ function EventForm({ event, onClose }) {
             ))}
           </div>
         </div>
-        <label className="field"><span>Día · {zone === 'mx' ? 'México' : 'Argentina'}</span><input className="input" type="date" value={f.date} onChange={set('date')} /></label>
+        <label className="field"><span>{repeat ? 'Desde' : 'Día'} · {zone === 'mx' ? 'México' : 'Argentina'}</span><input className="input" type="date" value={f.date} onChange={set('date')} /></label>
         <div className="field">
           <span>Hora</span>
           <div className="time-pair">
@@ -246,17 +343,78 @@ function EventForm({ event, onClose }) {
           </div>
           {crossNote && <p className="muted small" style={{ margin: 0 }}>{crossNote}</p>}
         </div>
-        <label className="field"><span>Título</span><input className="input" value={f.title} onChange={set('title')} placeholder={f.kind === 'Scrim' ? 'vs Rival · Mapa' : f.kind === 'Torneo' ? 'Nombre del torneo · fase' : f.kind} /></label>
+
+        {isNew && (
+          <div className="field">
+            <span>Repetir</span>
+            <div className="seg" style={{ alignSelf: 'flex-start' }} role="radiogroup" aria-label="Repetir">
+              <button type="button" role="radio" aria-checked={!repeat} className={!repeat ? 'on' : ''} onClick={() => setRepeat(false)}>Una vez</button>
+              <button type="button" role="radio" aria-checked={repeat} className={repeat ? 'on' : ''} onClick={() => setRepeat(true)}>Todas las semanas</button>
+            </div>
+            {repeat && (
+              <div className="stack" style={{ gap: 12 }}>
+                <div className="chips" role="group" aria-label="Días de la semana">
+                  {WEEKDAYS.map((l, i) => {
+                    const on = weekdays.includes(i);
+                    return <button key={l} type="button" aria-pressed={on} className={on ? 'on' : ''} onClick={() => setWeekdays(on ? weekdays.filter((x) => x !== i) : [...weekdays, i])}>{l}</button>;
+                  })}
+                </div>
+                <label className="row" style={{ gap: 12 }}>
+                  <span className="muted small">Durante</span>
+                  <select className="select" style={{ width: 'auto' }} value={weeks} onChange={(e) => setWeeks(Number(e.target.value))}>
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n} {n === 1 ? 'semana' : 'semanas'}</option>)}
+                  </select>
+                  <span className="muted small">· se crean {seriesDates.length} eventos</span>
+                </label>
+              </div>
+            )}
+          </div>
+        )}
+
+        {isScrim && (
+          <div className="form-grid">
+            <label className="field"><span>Rival</span><input className="input" value={f.rival} onChange={set('rival')} /></label>
+            <label className="field"><span>Mapa</span>
+              <select className="select" value={f.map} onChange={set('map')}>
+                <option value="">Sin definir</option>
+                {MAPS.map((m) => <option key={m}>{m}</option>)}
+              </select>
+            </label>
+          </div>
+        )}
+
+        <label className="field"><span>Título</span><input className="input" value={f.title} onChange={set('title')} placeholder={isScrim ? (f.rival ? `vs ${f.rival}` : 'vs Rival') : f.kind === 'Torneo' ? 'Nombre del torneo · fase' : f.kind} /></label>
+        <label className="field"><span>Material de la biblioteca</span>
+          <select className="select" value={f.libraryId} onChange={set('libraryId')}>
+            <option value="">Sin material</option>
+            {libs.map((l) => <option key={l.id} value={l.id}>{l.title}</option>)}
+          </select>
+        </label>
         <label className="field"><span>Nota</span><textarea className="textarea" value={f.note} onChange={set('note')} placeholder="Qué se va a trabajar, link del VOD, quiénes…" /></label>
+        {!isNew && event.seriesId && <p className="muted small" style={{ margin: 0 }}>Es parte de una serie semanal: los cambios se guardan solo en este evento.</p>}
         {error && <p className="error" style={{ margin: 0 }}>{error}</p>}
+
         <div className="row between">
           <div className="row">
-            <button className="btn btn-primary" disabled={busy}>{busy ? 'Guardando…' : 'Guardar'}</button>
+            <button className="btn btn-primary" disabled={busy}>{busy ? 'Guardando…' : repeat ? `Crear ${seriesDates.length}` : 'Guardar'}</button>
+            {isScrim && !repeat && (event.scrimId
+              ? <Link className="btn btn-light" to={`/scrims?id=${event.scrimId}`}>Abrir scrim</Link>
+              : <button type="button" className="btn btn-light" disabled={busy || players.loading} onClick={saveAndScrim}>Guardar y crear scrim</button>)}
             <button type="button" className="btn" onClick={onClose}>Cancelar</button>
           </div>
           {!isNew && (confirmDel
-            ? <button type="button" className="btn btn-danger" disabled={busy} onClick={() => run(() => deleteDoc(doc(db, C.events, event.id)))}>Confirmar borrado</button>
-            : <button type="button" className="btn btn-ghost" onClick={() => setConfirmDel(true)}>Borrar</button>)}
+            ? (
+              <div className="row" style={{ gap: 4 }}>
+                <button type="button" className="btn btn-danger" disabled={busy} onClick={() => remove(confirmDel === 'all')}>{confirmDel === 'all' ? 'Confirmar: este y los siguientes' : 'Confirmar borrado'}</button>
+                <button type="button" className="btn" onClick={() => setConfirmDel('')}>No</button>
+              </div>
+            )
+            : (
+              <div className="row" style={{ gap: 4 }}>
+                <button type="button" className="btn btn-ghost" onClick={() => setConfirmDel('one')}>Borrar</button>
+                {event.seriesId && <button type="button" className="btn btn-ghost" onClick={() => setConfirmDel('all')}>Borrar serie</button>}
+              </div>
+            ))}
         </div>
       </form>
     </Modal>

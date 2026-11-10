@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { addDoc, collection, deleteDoc, doc, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
+import { collection, deleteDoc, doc, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { useSearchParams } from 'react-router-dom';
 import { C, db } from '../firebase';
 import { BUYS, MAPS, ROUND_ENDS } from '../lib/constants';
 import { byNick, score, shortDate, todayKey, useLive } from '../lib/utils';
+import { createScrim } from '../lib/scrims';
 import { Loading } from '../components/ui';
 
 export default function Scrims() {
@@ -16,14 +17,7 @@ export default function Scrims() {
   const sel = list.find((s) => s.id === selId) || list[0];
 
   const create = async () => {
-    const roster = (players.data || []).slice().sort(byNick).slice(0, 5);
-    const ref = await addDoc(collection(db, C.scrims), {
-      date: todayKey(), map: MAPS[0], rival: '', startSide: 'Defensa', vod: '',
-      rounds: [],
-      stats: roster.map((p) => ({ playerId: p.id, nick: p.nick, agent: '', k: '', d: '', a: '', acs: '', fb: '', note: '' })),
-      good: '', fix: '', next: '', createdAt: serverTimestamp(),
-    });
-    setSelId(ref.id);
+    setSelId(await createScrim({ date: todayKey(), roster: players.data }));
   };
 
   return (
