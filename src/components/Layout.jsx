@@ -4,8 +4,8 @@ import { useAuth } from '../auth';
 import { Loading } from './ui';
 
 const COACH_NAV = [
-  ['/', 'Tablero'],
-  ['/calendario', 'Calendario'],
+  // ['/tablero', 'Tablero'], // desactivado por ahora
+  ['/', 'Calendario'],
   ['/scrims', 'Scrims'],
   ['/playbook', 'Playbook'],
   ['/biblioteca', 'Biblioteca'],

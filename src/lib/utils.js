@@ -90,3 +90,10 @@ export const errMsg = (e) => {
   if (code.includes('too-many-requests')) return 'Demasiados intentos. Probá en unos minutos.';
   return e?.message || 'Algo salió mal.';
 };
+
+// Resultado de un scrim por rondas: "13–8".
+export const score = (s) => {
+  const r = s.rounds || [];
+  const w = r.filter((x) => x.r === 'W').length;
+  return `${w}–${r.length - w}`;
+};

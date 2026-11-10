@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { addDoc, collection, deleteDoc, doc, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { C, db } from '../firebase';
 import { useAuth } from '../auth';
 import { EVENT_KINDS } from '../lib/constants';
-import { addDays, dayName, errMsg, shortDate, todayKey, useLive, weekStart } from '../lib/utils';
+import { addDays, dayName, errMsg, score, shortDate, todayKey, useLive, weekStart } from '../lib/utils';
 import { Icon, ICONS, Loading, Modal } from '../components/ui';
 
 // Se guarda en hora de Argentina (UTC-3). México (UTC-6, sin horario de verano) va 3 horas atrás.
@@ -36,6 +37,13 @@ export default function Calendario() {
 
   // Rango sobre un solo campo: no necesita índice compuesto.
   const events = useLive(() => query(collection(db, C.events), where('date', '>=', start), where('date', '<=', end)), [start]);
+  // Scrims cargados esa semana (solo staff: sot_scrims es solo staff).
+  const scrims = useLive(() => (staff ? query(collection(db, C.scrims), where('date', '>=', start), where('date', '<=', end)) : null), [start, staff]);
+  const scrimsByDay = useMemo(() => {
+    const m = {};
+    (scrims.data || []).forEach((s) => { (m[s.date] ||= []).push(s); });
+    return m;
+  }, [scrims.data]);
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(start, i)), [start]);
   const byDay = useMemo(() => {
     const m = {};
@@ -78,8 +86,14 @@ export default function Calendario() {
                 <span style={{ fontWeight: 600, lineHeight: 1.3 }}>{e.title || e.kind}</span>
               </button>
             ))}
+            {(scrimsByDay[d] || []).map((s) => (
+              <Link key={s.id} className="event event-scrim" to={`/scrims?id=${s.id}`}>
+                <span className="lbl muted" style={{ fontSize: 10 }}>Scrim cargado · {s.map}</span>
+                <span style={{ fontWeight: 600, lineHeight: 1.3 }}>{score(s)} vs {s.rival || 'Sin rival'}</span>
+              </Link>
+            ))}
             {staff && <button className="btn btn-dashed" style={{ marginTop: 'auto' }} onClick={() => setOpen({ date: d })} aria-label={`Agregar evento el ${dayName(d)} ${shortDate(d)}`}>+</button>}
-            {!staff && !(byDay[d] || []).length && <span className="muted small">Libre</span>}
+            {!(byDay[d] || []).length && !(scrimsByDay[d] || []).length && !staff && <span className="muted small">Libre</span>}
           </section>
         ))}
       </div>

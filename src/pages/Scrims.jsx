@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { addDoc, collection, deleteDoc, doc, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
+import { useSearchParams } from 'react-router-dom';
 import { C, db } from '../firebase';
 import { BUYS, MAPS, ROUND_ENDS } from '../lib/constants';
-import { byNick, shortDate, todayKey, useLive } from '../lib/utils';
+import { byNick, score, shortDate, todayKey, useLive } from '../lib/utils';
 import { Loading } from '../components/ui';
-import { score } from './Tablero';
 
 export default function Scrims() {
   const scrims = useLive(() => collection(db, C.scrims), []);
   const players = useLive(() => query(collection(db, C.players), where('active', '==', true)), []);
-  const [selId, setSelId] = useState(null);
+  const [params] = useSearchParams();
+  const [selId, setSelId] = useState(() => params.get('id')); // el Calendario abre uno puntual con ?id=
 
   const list = useMemo(() => (scrims.data || []).slice().sort((a, b) => (b.date || '').localeCompare(a.date || '')), [scrims.data]);
   const sel = list.find((s) => s.id === selId) || list[0];

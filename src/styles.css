@@ -139,6 +139,7 @@ td .input, td .select { min-height: 40px; min-width: 64px; }
 .week-day.today { border-top-color: var(--carmesi); }
 .event { display: flex; flex-direction: column; gap: 4px; min-height: 44px; padding: 10px 12px; text-align: left; border: 0; color: var(--blanco); background: var(--surface-2); }
 .event:hover { background: #262025; }
+.event-scrim { background: transparent; border: 1px solid var(--line-2); }
 @media (max-width: 960px) {
   .week { grid-template-columns: 1fr; }
   .week-day { min-height: 0; }

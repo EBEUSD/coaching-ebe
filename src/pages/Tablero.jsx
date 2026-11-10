@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { addDoc, collection, doc, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
 import { C, db } from '../firebase';
-import { addDays, byNick, dayName, dayTitle, todayKey, useLive } from '../lib/utils';
+import { addDays, byNick, dayName, dayTitle, score, todayKey, useLive } from '../lib/utils';
 import { AddPlayerForm, CredentialsModal, RemovePlayer } from '../components/PlayerAdmin';
 import { Check, Icon, ICONS } from '../components/ui';
 
@@ -107,12 +107,6 @@ export default function Tablero() {
     </main>
   );
 }
-
-export const score = (s) => {
-  const r = s.rounds || [];
-  const w = r.filter((x) => x.r === 'W').length;
-  return `${w}–${r.length - w}`;
-};
 
 function TeamNotes({ value, onSave }) {
   const [v, setV] = useState(value);

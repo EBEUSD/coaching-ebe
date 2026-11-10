@@ -5,7 +5,9 @@ import Layout from './components/Layout';
 import Login from './pages/Login';
 
 // Cada pantalla se baja recién cuando se abre (el jugador nunca descarga las del staff).
-const Tablero = lazy(() => import('./pages/Tablero'));
+// Tablero desactivado por ahora (el inicio del staff es el Calendario). Para volver: descomentar esto,
+// su ruta abajo y su entrada en Layout (COACH_NAV).
+// const Tablero = lazy(() => import('./pages/Tablero'));
 const Scrims = lazy(() => import('./pages/Scrims'));
 const Playbook = lazy(() => import('./pages/Playbook'));
 const Biblioteca = lazy(() => import('./pages/Biblioteca'));
@@ -54,8 +56,9 @@ export default function App() {
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route path="/" element={<Tablero />} />
-        <Route path="/calendario" element={<Calendario />} />
+        {/* <Route path="/tablero" element={<Tablero />} /> */}
+        <Route path="/" element={<Calendario />} />
+        <Route path="/calendario" element={<Navigate to="/" replace />} />
         <Route path="/scrims" element={<Scrims />} />
         <Route path="/playbook" element={<Playbook />} />
         <Route path="/biblioteca" element={<Biblioteca />} />
