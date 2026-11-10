@@ -6,16 +6,22 @@ import { EVENT_KINDS } from '../lib/constants';
 import { addDays, dayName, errMsg, shortDate, todayKey, useLive, weekStart } from '../lib/utils';
 import { Icon, ICONS, Loading, Modal } from '../components/ui';
 
-// La hora se carga en Argentina (UTC-3). México (UTC-6, sin horario de verano) va 3 horas atrás.
+// Se guarda en hora de Argentina (UTC-3). México (UTC-6, sin horario de verano) va 3 horas atrás.
 const MX_OFFSET_MIN = -3 * 60;
 const pad = (n) => String(n).padStart(2, '0');
-const toMx = (time) => {
-  if (!time) return null;
+// Corre una hora "HH:MM" y dice si cambia de día (-1, 0 o 1).
+const shift = (time, delta) => {
   const [h, m] = time.split(':').map(Number);
-  const total = h * 60 + m + MX_OFFSET_MIN;
+  const total = h * 60 + m + delta;
   const mins = ((total % 1440) + 1440) % 1440;
-  return { time: `${pad(Math.floor(mins / 60))}:${pad(mins % 60)}`, prevDay: total < 0 };
+  return { time: `${pad(Math.floor(mins / 60))}:${pad(mins % 60)}`, day: Math.floor(total / 1440) };
 };
+const toMx = (ar) => {
+  if (!ar) return null;
+  const r = shift(ar, MX_OFFSET_MIN);
+  return { time: r.time, prevDay: r.day < 0 };
+};
+const fromMx = (mx) => shift(mx, -MX_OFFSET_MIN);
 // México con aclaración si cae el día anterior: "17:00" o "22:00 (día anterior)".
 const mxLabel = (time) => {
   const mx = toMx(time);
@@ -109,6 +115,23 @@ function EventForm({ event, onClose }) {
   const [confirmDel, setConfirmDel] = useState(false);
   const [error, setError] = useState('');
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  // Se puede cargar la hora en cualquiera de las dos zonas; el "Día" es el de la zona que cargaste.
+  const [zone, setZone] = useState('ar');
+  const [mx, setMx] = useState(() => toMx(event.time)?.time || '');
+  // Al pasar de una zona a la otra, el "Día" también se convierte para que siga siendo el mismo momento.
+  const setAr = (v) => {
+    const date = zone === 'mx' && mx && f.date ? addDays(f.date, fromMx(mx).day) : f.date;
+    setF({ ...f, date, time: v }); setMx(v ? toMx(v).time : ''); setZone('ar');
+  };
+  const setMxTime = (v) => {
+    const date = zone === 'ar' && f.time && f.date && toMx(f.time).prevDay ? addDays(f.date, -1) : f.date;
+    setMx(v); setF({ ...f, date, time: v ? fromMx(v).time : '' }); setZone('mx');
+  };
+  const arDayShift = zone === 'mx' && mx ? fromMx(mx).day : 0; // MX tarde → en AR ya es el día siguiente
+  const arDate = f.date && arDayShift ? addDays(f.date, arDayShift) : f.date;
+  const crossNote = !f.time ? ''
+    : zone === 'mx' ? (arDayShift ? `En Argentina es el día siguiente: se guarda el ${shortDate(arDate)} a las ${f.time}.` : '')
+      : (toMx(f.time).prevDay ? 'En México es el día anterior.' : '');
 
   const run = async (fn) => {
     setBusy(true);
@@ -118,7 +141,7 @@ function EventForm({ event, onClose }) {
   const save = (e) => {
     e.preventDefault();
     if (!f.date) { setError('Elegí el día.'); return; }
-    const data = { ...f, title: f.title.trim(), note: f.note.trim(), updatedAt: serverTimestamp() };
+    const data = { ...f, date: arDate, title: f.title.trim(), note: f.note.trim(), updatedAt: serverTimestamp() };
     run(() => (isNew
       ? addDoc(collection(db, C.events), { ...data, createdAt: serverTimestamp() })
       : updateDoc(doc(db, C.events, event.id), data)));
@@ -133,10 +156,11 @@ function EventForm({ event, onClose }) {
           ))}
         </div>
         <div className="form-grid">
-          <label className="field"><span>Día</span><input className="input" type="date" value={f.date} onChange={set('date')} /></label>
-          <label className="field"><span>Hora Argentina</span><input className="input" type="time" value={f.time} onChange={set('time')} /></label>
-          <div className="field"><span>Hora México</span><div className="input" style={{ display: 'flex', alignItems: 'center', color: 'var(--muted)' }}>{f.time ? mxLabel(f.time) : '—'}</div></div>
+          <label className="field"><span>Día ({zone === 'mx' ? 'México' : 'Argentina'})</span><input className="input" type="date" value={f.date} onChange={set('date')} /></label>
+          <label className="field"><span>Hora Argentina</span><input className="input" type="time" value={f.time} onChange={(e) => setAr(e.target.value)} /></label>
+          <label className="field"><span>Hora México</span><input className="input" type="time" value={mx} onChange={(e) => setMxTime(e.target.value)} /></label>
         </div>
+        {crossNote && <p className="muted small" style={{ margin: 0 }}>{crossNote}</p>}
         <label className="field"><span>Título</span><input className="input" value={f.title} onChange={set('title')} placeholder={f.kind === 'Scrim' ? 'vs Rival · Mapa' : f.kind} /></label>
         <label className="field"><span>Nota</span><textarea className="textarea" value={f.note} onChange={set('note')} placeholder="Qué se va a trabajar, link del VOD, quiénes…" /></label>
         {error && <p className="error" style={{ margin: 0 }}>{error}</p>}
