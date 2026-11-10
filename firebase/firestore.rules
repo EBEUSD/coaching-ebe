@@ -1,0 +1,85 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ================= LANDING CREATOR =================
+    // Mismo acceso que hoy (público), pero solo para sus 4 colecciones
+    // y sus subcolecciones. Así Landing Creator sigue funcionando igual.
+    match /calEvents/{document=**} {
+      allow read, write: if true;
+    }
+    match /stores/{document=**} {
+      allow read, write: if true;
+    }
+    match /teams/{document=**} {
+      allow read, write: if true;
+    }
+    match /wishlists/{document=**} {
+      allow read, write: if true;
+    }
+
+    // ================== SOT COACHING ===================
+    function sotSigned() { return request.auth != null; }
+    function sotHasUser() {
+      return exists(/databases/$(database)/documents/sot_users/$(request.auth.uid));
+    }
+    function sotUser() {
+      return get(/databases/$(database)/documents/sot_users/$(request.auth.uid)).data;
+    }
+    // Super admin: el documento de respaldo en sot_coaches, o rol superadmin activo.
+    function sotSuper() {
+      return sotSigned() && (
+        exists(/databases/$(database)/documents/sot_coaches/$(request.auth.uid))
+        || (sotHasUser() && sotUser().role == 'superadmin' && sotUser().active == true)
+      );
+    }
+    // Staff: super admin o coach activo.
+    function sotCoach() {
+      return sotSuper() || (sotSigned() && sotHasUser() && sotUser().role == 'coach' && sotUser().active == true);
+    }
+    function sotPlayer() {
+      return sotSigned() && get(/databases/$(database)/documents/sot_players/$(request.auth.uid)).data.active == true;
+    }
+
+    match /sot_coaches/{uid} {
+      allow read: if sotSigned() && request.auth.uid == uid;
+      allow write: if false; // solo desde la consola
+    }
+    match /sot_users/{uid} {
+      allow read: if sotSigned() && (request.auth.uid == uid || sotCoach());
+      // El super admin maneja todo; un coach solo puede crear o editar usuarios jugador.
+      allow create: if sotSuper()
+        || (sotCoach() && request.resource.data.role == 'player');
+      allow update: if sotSuper()
+        || (sotCoach() && resource.data.role == 'player' && request.resource.data.role == 'player');
+      allow delete: if sotSuper();
+    }
+    match /sot_players/{uid} {
+      allow read: if sotCoach() || (sotSigned() && request.auth.uid == uid && resource.data.active == true);
+      allow write: if sotCoach();
+    }
+    match /sot_notes/{id} {
+      allow read: if sotCoach() || (sotPlayer() && resource.data.playerId == request.auth.uid);
+      allow write: if sotCoach();
+    }
+    match /sot_tasks/{id} {
+      allow read: if sotCoach() || (sotPlayer() && resource.data.playerId == request.auth.uid);
+      allow write: if sotCoach();
+    }
+    match /sot_strats/{id} {
+      allow read: if sotCoach() || sotPlayer();
+      allow write: if sotCoach();
+    }
+    match /sot_library/{id} {
+      allow read: if sotCoach() || sotPlayer();
+      allow write: if sotCoach();
+    }
+    match /sot_days/{id} {
+      allow read, write: if sotCoach();
+    }
+    match /sot_scrims/{id} {
+      allow read, write: if sotCoach();
+    }
+  }
+}

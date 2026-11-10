@@ -1,0 +1,43 @@
+// ================== SOT COACHING ==================
+// Pegar este bloque DENTRO de:  match /databases/{database}/documents { ... }
+// de tus reglas actuales de Firestore, sin borrar las de Landing Creator.
+
+    function sotSigned() { return request.auth != null; }
+    function sotCoach() {
+      return sotSigned() && exists(/databases/$(database)/documents/sot_coaches/$(request.auth.uid));
+    }
+    function sotPlayer() {
+      return sotSigned() && get(/databases/$(database)/documents/sot_players/$(request.auth.uid)).data.active == true;
+    }
+
+    match /sot_coaches/{uid} {
+      allow read: if sotSigned() && request.auth.uid == uid;
+      allow write: if false; // se crea a mano desde la consola
+    }
+    match /sot_players/{uid} {
+      allow read: if sotCoach() || (sotSigned() && request.auth.uid == uid && resource.data.active == true);
+      allow write: if sotCoach();
+    }
+    match /sot_notes/{id} {
+      allow read: if sotCoach() || (sotPlayer() && resource.data.playerId == request.auth.uid);
+      allow write: if sotCoach();
+    }
+    match /sot_tasks/{id} {
+      allow read: if sotCoach() || (sotPlayer() && resource.data.playerId == request.auth.uid);
+      allow write: if sotCoach();
+    }
+    match /sot_strats/{id} {
+      allow read: if sotCoach() || sotPlayer();
+      allow write: if sotCoach();
+    }
+    match /sot_library/{id} {
+      allow read: if sotCoach() || sotPlayer();
+      allow write: if sotCoach();
+    }
+    match /sot_days/{id} {
+      allow read, write: if sotCoach();
+    }
+    match /sot_scrims/{id} {
+      allow read, write: if sotCoach();
+    }
+// ================ FIN SOT COACHING ================
