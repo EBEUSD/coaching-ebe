@@ -161,7 +161,7 @@ function EventForm({ event, onClose }) {
           <label className="field"><span>Hora México</span><input className="input" type="time" value={mx} onChange={(e) => setMxTime(e.target.value)} /></label>
         </div>
         {crossNote && <p className="muted small" style={{ margin: 0 }}>{crossNote}</p>}
-        <label className="field"><span>Título</span><input className="input" value={f.title} onChange={set('title')} placeholder={f.kind === 'Scrim' ? 'vs Rival · Mapa' : f.kind} /></label>
+        <label className="field"><span>Título</span><input className="input" value={f.title} onChange={set('title')} placeholder={f.kind === 'Scrim' ? 'vs Rival · Mapa' : f.kind === 'Torneo' ? 'Nombre del torneo · fase' : f.kind} /></label>
         <label className="field"><span>Nota</span><textarea className="textarea" value={f.note} onChange={set('note')} placeholder="Qué se va a trabajar, link del VOD, quiénes…" /></label>
         {error && <p className="error" style={{ margin: 0 }}>{error}</p>}
         <div className="row between">

@@ -10,7 +10,7 @@ export const LIB_CATS = ['Fundamentos', 'Mapas', 'Utilidad', 'Comunicación', 'M
 
 export const TASK_KINDS = ['VOD', 'Aim', 'Teórico', 'Utilidad', 'Lineups', 'IGL', 'Rutina'];
 
-export const EVENT_KINDS = ['Clase', 'Scrim', 'VOD review', 'Teórico', 'Otro'];
+export const EVENT_KINDS = ['Clase', 'Scrim', 'Torneo', 'VOD review', 'Teórico', 'Otro'];
 
 export const BUYS = ['Pistola', 'Eco', 'Bonus', 'Force', 'Full buy'];
 export const ROUND_ENDS = ['Eliminación', 'Spike detonada', 'Defuse', 'Tiempo'];
