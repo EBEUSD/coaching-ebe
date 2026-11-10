@@ -65,6 +65,14 @@ service cloud.firestore {
     }
     match /sot_tasks/{id} {
       allow read: if sotCoach() || (sotPlayer() && resource.data.playerId == request.auth.uid);
+      allow create, delete: if sotCoach();
+      // El jugador solo puede marcar o desmarcar sus propias tareas (únicamente el campo done).
+      allow update: if sotCoach()
+        || (sotPlayer() && resource.data.playerId == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['done']));
+    }
+    match /sot_events/{id} {
+      allow read: if sotCoach() || sotPlayer();
       allow write: if sotCoach();
     }
     match /sot_strats/{id} {

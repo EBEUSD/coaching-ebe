@@ -4,8 +4,10 @@ import { C, db } from '../firebase';
 import { ROLES } from '../lib/constants';
 import { shortDate, todayKey, useLive } from '../lib/utils';
 import { Check, Icon, ICONS, Loading } from './ui';
+import PlayerStats from './PlayerStats';
 
-export default function Ficha({ playerId, editable }) {
+// editable: staff. canCheck: el propio jugador puede marcar sus tareas como hechas.
+export default function Ficha({ playerId, editable, canCheck }) {
   const player = useLive(() => doc(db, C.players, playerId), [playerId]);
   const notes = useLive(() => query(collection(db, C.notes), where('playerId', '==', playerId)), [playerId]);
   const tasks = useLive(() => query(collection(db, C.tasks), where('playerId', '==', playerId)), [playerId]);
@@ -36,7 +38,7 @@ export default function Ficha({ playerId, editable }) {
       </section>
 
       <div className="tabs" role="tablist">
-        {[['goals', 'Objetivos'], ['notes', 'Notas'], ['tasks', 'Tareas'], ...(editable ? [['edit', 'Datos']] : [])].map(([id, l]) => (
+        {[['goals', 'Objetivos'], ['notes', 'Notas'], ['tasks', 'Tareas'], ...(editable ? [['stats', 'Stats'], ['edit', 'Datos']] : [])].map(([id, l]) => (
           <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{l}</button>
         ))}
       </div>
@@ -65,7 +67,7 @@ export default function Ficha({ playerId, editable }) {
             const late = !t.done && t.due && t.due < today;
             return (
               <div key={t.id} className="list-row">
-                {editable
+                {editable || canCheck
                   ? <Check on={t.done} label={`Marcar cumplida: ${t.title}`} onClick={() => updateDoc(doc(db, C.tasks, t.id), { done: !t.done })} />
                   : <span className={`check${t.done ? ' on' : ''}`} aria-hidden="true">{t.done && <Icon d={ICONS.check} size={16} stroke={3} />}</span>}
                 <span style={{ flex: 1, fontWeight: 600, color: t.done ? 'var(--muted)' : undefined, textDecoration: t.done ? 'line-through' : undefined }}>{t.title}</span>
@@ -76,6 +78,7 @@ export default function Ficha({ playerId, editable }) {
         </div>
       )}
 
+      {tab === 'stats' && editable && <PlayerStats playerId={playerId} />}
       {tab === 'edit' && editable && <EditData player={p} />}
     </div>
   );

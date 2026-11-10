@@ -133,6 +133,25 @@ td .input, td .select { min-height: 40px; min-width: 64px; }
 .login { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: radial-gradient(ellipse at 50% 120%, var(--raiz) 0%, var(--negro) 60%); }
 .login form { width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 20px; }
 
+/* Calendario semanal */
+.week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.week-day { display: flex; flex-direction: column; gap: 8px; min-height: 240px; padding: 14px 12px; background: var(--surface); border-top: 3px solid transparent; }
+.week-day.today { border-top-color: var(--carmesi); }
+.event { display: flex; flex-direction: column; gap: 4px; min-height: 44px; padding: 10px 12px; text-align: left; border: 0; color: var(--blanco); background: var(--surface-2); }
+.event:hover { background: #262025; }
+@media (max-width: 960px) {
+  .week { grid-template-columns: 1fr; }
+  .week-day { min-height: 0; }
+}
+
+/* Stats */
+.stat-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 4px; }
+.stat-tiles > div { display: flex; flex-direction: column; gap: 4px; padding: 18px 20px; background: var(--surface); }
+.bars { display: flex; align-items: flex-end; gap: 2px; height: 160px; padding-top: 8px; border-bottom: 1px solid var(--line-2); }
+.bars button { flex: 1 1 0; max-width: 48px; height: 100%; display: flex; align-items: flex-end; padding: 0; border: 0; background: transparent; }
+.bars span { display: block; width: 100%; min-height: 2px; border-radius: 4px 4px 0 0; background: var(--acero); }
+.bars button:hover span, .bars button:focus-visible span, .bars button.on span { background: var(--blanco); }
+
 @media (max-width: 640px) {
   .topbar { padding: 12px 16px; }
   .page { padding: 16px 16px 64px; }

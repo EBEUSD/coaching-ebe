@@ -23,11 +23,12 @@ export const playerProfile = ({ nick, name, role, username }) => ({
 export async function addPlayer({ nick, name, role, username, password }) {
   const user = username || slugUser(nick);
   const pass = password || randomPassword();
-  const uid = await createPlayerAccount(user, pass);
-  await setDoc(doc(db, C.users, uid), {
-    username: user, name: (name || '').trim() || nick.trim(), nick: nick.trim(), role: 'player', active: true, createdAt: serverTimestamp(),
+  await createPlayerAccount(user, pass, async (uid) => {
+    await setDoc(doc(db, C.users, uid), {
+      username: user, name: (name || '').trim() || nick.trim(), nick: nick.trim(), role: 'player', active: true, createdAt: serverTimestamp(),
+    });
+    await setDoc(doc(db, C.players, uid), playerProfile({ nick, name, role, username: user }));
   });
-  await setDoc(doc(db, C.players, uid), playerProfile({ nick, name, role, username: user }));
   return { nick: nick.trim(), username: user, password: pass };
 }
 

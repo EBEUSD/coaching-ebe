@@ -1,8 +1,11 @@
+import { Suspense } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../auth';
+import { Loading } from './ui';
 
 const COACH_NAV = [
   ['/', 'Tablero'],
+  ['/calendario', 'Calendario'],
   ['/scrims', 'Scrims'],
   ['/playbook', 'Playbook'],
   ['/biblioteca', 'Biblioteca'],
@@ -12,6 +15,7 @@ const COACH_NAV = [
 
 const PLAYER_NAV = [
   ['/', 'Mi ficha'],
+  ['/calendario', 'Calendario'],
   ['/playbook', 'Playbook'],
   ['/biblioteca', 'Biblioteca'],
 ];
@@ -37,7 +41,9 @@ export default function Layout() {
           <button className="btn" onClick={logout}>Salir</button>
         </div>
       </header>
-      <Outlet />
+      <Suspense fallback={<main className="page"><Loading /></main>}>
+        <Outlet />
+      </Suspense>
     </>
   );
 }

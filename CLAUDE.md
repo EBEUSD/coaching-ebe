@@ -10,13 +10,14 @@ Respondé en español rioplatense. Prefiero respuestas concisas y bloques de có
 - Deploy en Vercel (`vercel.json` reescribe todo a `index.html`).
 
 ## Estructura
-- `src/firebase.js` — config, `auth`, `db`, `storage`, `toEmail()` (usuario → `usuario@sot-coaching.app`), `createPlayerAccount()` (crea cuentas con una app secundaria en memoria para no cerrar la sesión del admin), constantes `C` con nombres de colecciones.
+- `src/firebase.js` — config, `auth`, `db`, `storage`, `toEmail()` (usuario → `usuario@sot-coaching.app`), `createPlayerAccount(username, password, setup)` (crea la cuenta con una app secundaria en memoria para no cerrar la sesión del admin; si `setup(uid)` falla, borra la cuenta para que no quede huérfana), `setUserPassword()` (carga `firebase/functions` recién al usarse), constantes `C` con nombres de colecciones.
+- `src/storage.js` — `storage` aparte, para que Storage solo baje en Biblioteca/Playbook.
 - `src/auth.jsx` — `AuthProvider`/`useAuth`: `role` ('loading' | 'out' | 'superadmin' | 'coach' | 'player' | 'none'), `staff` (coach o superadmin), `user`, `player`, `profile`, `login`, `logout`.
-- `src/App.jsx` — rutas por rol. Staff: `/`, `/scrims`, `/playbook`, `/biblioteca`, `/tareas`, `/jugadores` y `/admin` (solo superadmin). Jugador: `/` (MiFicha), `/playbook`, `/biblioteca`.
-- `src/components/` — `Layout` (topbar + nav), `ui.jsx` (Modal, Icon, ICONS, Check, Loading), `PlayerAdmin.jsx` (addPlayer, playerProfile, setPlayerActive, AddPlayerForm, CredentialsModal, RemovePlayer), `Ficha.jsx` (ficha de jugador, editable o de solo lectura).
-- `src/pages/` — Login, Tablero, Scrims, Playbook, Biblioteca, Tareas, Jugadores, MiFicha, Admin.
-- `src/lib/constants.js` — MAPS, ROLES, STRAT_TYPES, STRAT_STATES, LIB_CATS, TASK_KINDS, BUYS, ROUND_ENDS, INITIAL_ROSTER.
-- `src/lib/utils.js` — fechas (`dateKey`, `todayKey`, `addDays`, `shortDate`, `dayTitle`), `randomPassword`, `slugUser`, `byNick`, `useLive(make, deps)` (onSnapshot sobre una query o un doc; devuelve `{data, loading, error}`), `errMsg` (errores de Firebase en español).
+- `src/App.jsx` — rutas por rol. Todas las páginas con `React.lazy` (Suspense en `Layout`); `vite.config.js` separa los chunks `react` y `firebase`. Staff: `/`, `/calendario`, `/scrims`, `/playbook`, `/biblioteca`, `/tareas`, `/jugadores` y `/admin` (solo superadmin). Jugador: `/` (MiFicha), `/calendario` (solo lectura), `/playbook`, `/biblioteca`.
+- `src/components/` — `Layout` (topbar + nav), `ui.jsx` (Modal, Icon, ICONS, Check, Loading), `PlayerAdmin.jsx` (addPlayer, playerProfile, setPlayerActive, AddPlayerForm, CredentialsModal, RemovePlayer), `Ficha.jsx` (ficha de jugador: `editable` = staff, con pestaña Stats; `canCheck` = el jugador marca sus tareas), `PlayerStats.jsx` (K/D, ACS, FB, récord, por mapa y evolución de ACS, calculado de `sot_scrims`; solo staff).
+- `src/pages/` — Login, Tablero, Calendario, Scrims, Playbook, Biblioteca, Tareas, Jugadores, MiFicha, Admin.
+- `src/lib/constants.js` — MAPS, ROLES, STRAT_TYPES, STRAT_STATES, LIB_CATS, TASK_KINDS, EVENT_KINDS, BUYS, ROUND_ENDS, INITIAL_ROSTER.
+- `src/lib/utils.js` — fechas (`dateKey`, `todayKey`, `addDays`, `shortDate`, `dayTitle`, `weekStart` = lunes), `randomPassword`, `slugUser`, `byNick`, `useLive(make, deps)` (onSnapshot sobre una query o un doc; devuelve `{data, loading, error}`), `errMsg` (errores de Firebase en español).
 - `functions/` — Cloud Functions (codebase `sot-coaching` en `firebase.json`, para no pisar funciones de Landing Creator). `sotSetPassword({uid, password})`: solo superadmin y solo cuentas que estén en `sot_users`/`sot_players`. Deploy: `npx firebase-tools deploy --only functions:sot-coaching`. No poner `engines` en `functions/package.json` (el gestor de Node local exige tener esa versión instalada); el runtime va en `firebase.json`.
 - `firebase/firestore.rules` y `firebase/storage.rules` — reglas completas (ya publicadas en la consola). Si las cambiás, hay que pegarlas a mano en la consola de Firebase.
 
@@ -29,12 +30,13 @@ Respondé en español rioplatense. Prefiero respuestas concisas y bloques de có
 - `sot_tasks/{id}` — `{playerId, title, kind, due (YYYY-MM-DD), done}`.
 - `sot_scrims/{id}` — `{date, map, rival, startSide, vod, rounds:[{r:'W'|'L', buy, rivalBuy, how, strat, note}], stats:[{playerId, nick, agent, k, d, a, acs, fb, note}], good, fix, next}`.
 - `sot_strats/{id}` — `{map, side:'Ataque'|'Defensa', type, site, name, state, desc, roles:[{who, what}], image, vod}`.
+- `sot_events/{id}` — `{date (YYYY-MM-DD), time (HH:MM), kind (EVENT_KINDS), title, note}`. La semana se pide con rango sobre `date` (un solo campo, sin índice).
 - `sot_library/{id}` — `{title, cat, kind:'PDF'|'Video'|'Link'|'Imagen'|'Archivo', url, path (Storage), tags[], date}`.
 - Storage: archivos en `sot/library/...` y `sot/strats/{id}/...`.
 
 ## Permisos (reglas)
 - Superadmin = documento en `sot_coaches` o `sot_users` con role superadmin y active. Coach = role coach y active. Staff = superadmin o coach.
-- Jugador = `sot_players/{uid}.active == true`. Lee su propia ficha y sus `sot_notes`/`sot_tasks` (las queries tienen que filtrar por `where('playerId','==',uid)`), más `sot_strats` y `sot_library`.
+- Jugador = `sot_players/{uid}.active == true`. Lee su propia ficha y sus `sot_notes`/`sot_tasks` (las queries tienen que filtrar por `where('playerId','==',uid)`), más `sot_strats`, `sot_library` y `sot_events`. En sus tareas puede cambiar solo el campo `done`.
 - `sot_days` y `sot_scrims`: solo staff. Un coach solo puede crear o editar usuarios jugador; el superadmin maneja todo.
 - Landing Creator: sus colecciones (`calEvents`, `stores`, `teams`, `wishlists`) siguen públicas a propósito; en Storage queda público todo lo que no está en `sot/`. NO romper eso. Repo: github.com/EBEUSD/landing-creator. Desde nov 2026 hace `signInAnonymously` antes de montar (si falla arranca igual) y su `firebase.json` ya no despliega reglas: las reglas de TODO el proyecto viven solo en este repo (`firebase/*.rules`). Usa `stores`, `teams`, `calEvents` (`wishlists` no aparece en el código, se dejó igual) y Storage `ref-images/`, `canvas-images/`; el resto del bucket fuera de `sot/` queda cerrado. Tiene la función `vtex` en el codebase default.
 - Evitar queries que necesiten índices compuestos: filtrar con un solo `where` y ordenar del lado del cliente.
@@ -53,7 +55,8 @@ Joshua (Emiliano, Flex), Keiks (Fabián, Centinela), Meiz (José, Iniciador/Smok
 - Hecho: todas las pantallas, alta y baja de jugadores (baja = active false, quedan archivados), panel /admin con roles, reglas publicadas.
 - Pendiente / ideas:
   1. ~~Cambiar contraseñas desde /admin~~ — hecho (botón «Contraseña» en /admin + `sotSetPassword`). Falta desplegar la función.
-  2. Code-splitting (el bundle pesa ~730 kB).
+  2. ~~Code-splitting~~ — hecho (carga inicial ~650 kB; lo grueso es Firestore).
   3. Cerrar las reglas de Landing Creator — código hecho; falta activar el proveedor Anónimo, redeployar Landing Creator, probarlo y recién ahí publicar las reglas nuevas.
-  4. Dashboard de stats por jugador a partir de los scrims.
+  4. ~~Stats por jugador~~ — hecho (pestaña Stats de la ficha, solo staff).
+  5. ~~Calendario semanal~~ y ~~jugador marca sus tareas~~ — hechos.
 - Antes de cambiar el modelo de datos o las reglas, avisame qué cambia y dame las reglas completas para pegar en la consola.

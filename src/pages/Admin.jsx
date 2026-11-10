@@ -182,14 +182,15 @@ function NewUser({ onCreated }) {
     if (isPlayer && !f.nick.trim()) { setError('Poné el nick del jugador.'); return; }
     setBusy(true);
     try {
-      const uid = await createPlayerAccount(username, f.password);
       const name = f.name.trim() || f.nick.trim() || username;
-      await setDoc(doc(db, C.users, uid), {
-        username, name, nick: f.nick.trim(), role: f.role, active: true, createdAt: serverTimestamp(),
+      await createPlayerAccount(username, f.password, async (uid) => {
+        await setDoc(doc(db, C.users, uid), {
+          username, name, nick: f.nick.trim(), role: f.role, active: true, createdAt: serverTimestamp(),
+        });
+        if (isPlayer) {
+          await setDoc(doc(db, C.players, uid), playerProfile({ nick: f.nick, name: f.name, role: f.rosterRole, username }));
+        }
       });
-      if (isPlayer) {
-        await setDoc(doc(db, C.players, uid), playerProfile({ nick: f.nick, name: f.name, role: f.rosterRole, username }));
-      }
       onCreated([{ nick: `${f.nick.trim() || name} (${roleLabel[f.role]})`, username, password: f.password }]);
       setF(empty());
     } catch (err) {

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { addDoc, collection, deleteDoc, doc, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
-import { C, db, storage } from '../firebase';
+import { C, db } from '../firebase';
+import { storage } from '../storage';
 import { useAuth } from '../auth';
 import { MAPS, STRAT_STATES, STRAT_TYPES } from '../lib/constants';
 import { errMsg, useLive } from '../lib/utils';

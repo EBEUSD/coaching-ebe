@@ -1,15 +1,19 @@
+import { lazy } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './auth';
 import Layout from './components/Layout';
 import Login from './pages/Login';
-import Tablero from './pages/Tablero';
-import Scrims from './pages/Scrims';
-import Playbook from './pages/Playbook';
-import Biblioteca from './pages/Biblioteca';
-import Tareas from './pages/Tareas';
-import Jugadores from './pages/Jugadores';
-import MiFicha from './pages/MiFicha';
-import Admin from './pages/Admin';
+
+// Cada pantalla se baja recién cuando se abre (el jugador nunca descarga las del staff).
+const Tablero = lazy(() => import('./pages/Tablero'));
+const Scrims = lazy(() => import('./pages/Scrims'));
+const Playbook = lazy(() => import('./pages/Playbook'));
+const Biblioteca = lazy(() => import('./pages/Biblioteca'));
+const Tareas = lazy(() => import('./pages/Tareas'));
+const Jugadores = lazy(() => import('./pages/Jugadores'));
+const MiFicha = lazy(() => import('./pages/MiFicha'));
+const Calendario = lazy(() => import('./pages/Calendario'));
+const Admin = lazy(() => import('./pages/Admin'));
 
 export default function App() {
   const { role, user, logout } = useAuth();
@@ -38,6 +42,7 @@ export default function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<MiFicha />} />
+          <Route path="/calendario" element={<Calendario />} />
           <Route path="/playbook" element={<Playbook />} />
           <Route path="/biblioteca" element={<Biblioteca />} />
           <Route path="*" element={<Navigate to="/" replace />} />
@@ -50,6 +55,7 @@ export default function App() {
     <Routes>
       <Route element={<Layout />}>
         <Route path="/" element={<Tablero />} />
+        <Route path="/calendario" element={<Calendario />} />
         <Route path="/scrims" element={<Scrims />} />
         <Route path="/playbook" element={<Playbook />} />
         <Route path="/biblioteca" element={<Biblioteca />} />

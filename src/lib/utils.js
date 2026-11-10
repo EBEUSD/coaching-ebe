@@ -33,6 +33,9 @@ export const dayTitle = (k) => {
 
 export const dayName = (k) => DAYS[fromKey(k).getDay()];
 
+// Lunes de la semana de esa fecha.
+export const weekStart = (k) => addDays(k, -((fromKey(k).getDay() + 6) % 7));
+
 export const randomPassword = () => {
   const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
   let p = '';

@@ -5,7 +5,7 @@ export default function MiFicha() {
   const { user } = useAuth();
   return (
     <main className="page narrow">
-      <Ficha playerId={user.uid} editable={false} />
+      <Ficha playerId={user.uid} editable={false} canCheck />
     </main>
   );
 }

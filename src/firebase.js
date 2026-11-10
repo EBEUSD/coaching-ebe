@@ -4,11 +4,10 @@ import {
   initializeAuth,
   inMemoryPersistence,
   createUserWithEmailAndPassword,
+  deleteUser,
   signOut,
 } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 
 // Config pública del proyecto landing-creator (es segura en el cliente;
 // la seguridad la dan las reglas de Firestore y Storage).
@@ -24,11 +23,13 @@ export const firebaseConfig = {
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const storage = getStorage(app);
-const functions = getFunctions(app, 'us-central1');
+// Storage vive en ./storage.js y Functions se carga al usarla: así no pesan en la carga inicial.
 
 // Cambia la contraseña de un usuario (Cloud Function, solo super admin).
-export const setUserPassword = (uid, password) => httpsCallable(functions, 'sotSetPassword')({ uid, password });
+export async function setUserPassword(uid, password) {
+  const { getFunctions, httpsCallable } = await import('firebase/functions');
+  return httpsCallable(getFunctions(app, 'us-central1'), 'sotSetPassword')({ uid, password });
+}
 
 // Los jugadores entran con usuario (ej: "kai"). Por debajo es un email ficticio.
 export const USER_DOMAIN = 'sot-coaching.app';
@@ -41,10 +42,19 @@ export const toEmail = (user) => {
 const secondary = initializeApp(firebaseConfig, 'secondary');
 const secondaryAuth = initializeAuth(secondary, { persistence: inMemoryPersistence });
 
-export async function createPlayerAccount(username, password) {
+// setup(uid) guarda los documentos con la sesión del admin. Si falla, se borra la
+// cuenta recién creada para que no quede huérfana (y se pueda reintentar).
+export async function createPlayerAccount(username, password, setup) {
   const cred = await createUserWithEmailAndPassword(secondaryAuth, toEmail(username), password);
   const uid = cred.user.uid;
-  await signOut(secondaryAuth);
+  try {
+    if (setup) await setup(uid);
+  } catch (e) {
+    await deleteUser(cred.user).catch(console.error);
+    throw e;
+  } finally {
+    await signOut(secondaryAuth).catch(() => {});
+  }
   return uid;
 }
 
@@ -59,4 +69,5 @@ export const C = {
   scrims: 'sot_scrims',
   strats: 'sot_strats',
   library: 'sot_library',
+  events: 'sot_events', // calendario semanal: clases, scrims, VOD reviews
 };
